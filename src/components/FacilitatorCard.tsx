@@ -12,15 +12,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
-
 function focusBadge(focus: string) {
   const colors: Record<string, string> = {
     Facilitation: "bg-blue-100 text-blue-800 border-blue-200",
@@ -56,6 +47,21 @@ function experienceBadge(level: string) {
   );
 }
 
+function availabilityDot(availability: string) {
+  const config: Record<string, { color: string; label: string }> = {
+    Available: { color: "bg-green-500", label: "Available" },
+    "On Assignment": { color: "bg-yellow-500", label: "On Assignment" },
+    Unavailable: { color: "bg-red-500", label: "Unavailable" },
+  };
+  const c = config[availability] || config["Available"];
+  return (
+    <span className="inline-flex items-center gap-1.5" title={c.label}>
+      <span className={`w-2.5 h-2.5 rounded-full ${c.color} animate-pulse`} />
+      <span className="text-xs text-gray-500">{c.label}</span>
+    </span>
+  );
+}
+
 export default function FacilitatorCard({ f }: { f: Facilitator }) {
   const [expanded, setExpanded] = useState(false);
   const completedCount = f.engagements.filter(
@@ -65,20 +71,38 @@ export default function FacilitatorCard({ f }: { f: Facilitator }) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow overflow-hidden">
       <div className="p-5">
+        {/* Availability + Region bar */}
+        <div className="flex items-center justify-between mb-3">
+          {availabilityDot(f.availability)}
+          <span className="text-xs text-gray-400">{f.region}</span>
+        </div>
+
         {/* Header */}
         <div className="flex items-start gap-4">
-          {/* Avatar - uses photo URL if available, otherwise DiceBear avatar */}
-          <img
-            src={
-              f.photoUrl ||
-              `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name)}&backgroundColor=6366f1,8b5cf6,a855f7&fontFamily=Arial&fontSize=40`
-            }
-            alt={f.name}
-            className="w-14 h-14 rounded-full object-cover border-2 border-gray-100 flex-shrink-0 bg-indigo-100"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name)}&backgroundColor=6366f1`;
-            }}
-          />
+          {/* Avatar */}
+          <div className="relative flex-shrink-0">
+            <img
+              src={
+                f.photoUrl ||
+                `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name)}&backgroundColor=6366f1,8b5cf6,a855f7&fontFamily=Arial&fontSize=40`
+              }
+              alt={f.name}
+              className="w-14 h-14 rounded-full object-cover border-2 border-gray-100 bg-indigo-100"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name)}&backgroundColor=6366f1`;
+              }}
+            />
+            {/* Small availability dot on avatar */}
+            <span
+              className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white ${
+                f.availability === "Available"
+                  ? "bg-green-500"
+                  : f.availability === "On Assignment"
+                    ? "bg-yellow-500"
+                    : "bg-red-500"
+              }`}
+            />
+          </div>
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
@@ -148,7 +172,7 @@ export default function FacilitatorCard({ f }: { f: Facilitator }) {
       {expanded && f.engagements.length > 0 && (
         <div className="border-t border-gray-100 bg-gray-50 px-5 py-3">
           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-            Engagement History
+            Engagement History (most recent first)
           </h4>
           <ul className="space-y-1.5">
             {f.engagements.map((eng, i) => (

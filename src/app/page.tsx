@@ -7,7 +7,6 @@ import FilterBar from "@/components/FilterBar";
 import StatsBar from "@/components/StatsBar";
 import { RefreshCw } from "lucide-react";
 
-// Lazy-load the map since Leaflet is client-only and heavy
 const MapView = lazy(() => import("@/components/MapView"));
 
 export default function Home() {
@@ -18,6 +17,8 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [focusFilter, setFocusFilter] = useState("All");
   const [expFilter, setExpFilter] = useState("All");
+  const [availFilter, setAvailFilter] = useState("All");
+  const [regionFilter, setRegionFilter] = useState("All");
   const [view, setView] = useState<"cards" | "map">("cards");
 
   const fetchData = useCallback(async () => {
@@ -47,13 +48,13 @@ export default function Home() {
         f.location.toLowerCase().includes(search.toLowerCase()) ||
         f.bio.toLowerCase().includes(search.toLowerCase()) ||
         f.country.toLowerCase().includes(search.toLowerCase());
-      const matchesFocus =
-        focusFilter === "All" || f.focus === focusFilter;
-      const matchesExp =
-        expFilter === "All" || f.experienceLevel === expFilter;
-      return matchesSearch && matchesFocus && matchesExp;
+      const matchesFocus = focusFilter === "All" || f.focus === focusFilter;
+      const matchesExp = expFilter === "All" || f.experienceLevel === expFilter;
+      const matchesAvail = availFilter === "All" || f.availability === availFilter;
+      const matchesRegion = regionFilter === "All" || f.region === regionFilter;
+      return matchesSearch && matchesFocus && matchesExp && matchesAvail && matchesRegion;
     });
-  }, [facilitators, search, focusFilter, expFilter]);
+  }, [facilitators, search, focusFilter, expFilter, availFilter, regionFilter]);
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -61,11 +62,7 @@ export default function Home() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img
-              src="/logo.avif"
-              alt="ArcticMind"
-              className="h-10 w-auto"
-            />
+            <img src="/logo.avif" alt="ArcticMind" className="h-10 w-auto" />
             <div>
               <h1 className="text-xl font-bold text-gray-900">
                 Facilitator Pool
@@ -80,9 +77,7 @@ export default function Home() {
             disabled={loading}
             className="flex items-center gap-2 px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors disabled:opacity-50"
           >
-            <RefreshCw
-              className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
-            />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </button>
         </div>
@@ -93,7 +88,9 @@ export default function Home() {
         <StatsBar
           facilitators={facilitators}
           activeFocus={focusFilter}
-          onFocusClick={(focus) => setFocusFilter(focus === focusFilter ? "All" : focus)}
+          onFocusClick={(focus) =>
+            setFocusFilter(focus === focusFilter ? "All" : focus)
+          }
         />
 
         {/* Filters */}
@@ -104,20 +101,24 @@ export default function Home() {
           onFocusChange={setFocusFilter}
           expFilter={expFilter}
           onExpChange={setExpFilter}
+          availFilter={availFilter}
+          onAvailChange={setAvailFilter}
+          regionFilter={regionFilter}
+          onRegionChange={setRegionFilter}
           view={view}
           onViewChange={setView}
           totalCount={facilitators.length}
           filteredCount={filtered.length}
         />
 
-        {/* Error state */}
+        {/* Error */}
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
             {error}
           </div>
         )}
 
-        {/* Loading state */}
+        {/* Loading */}
         {loading && (
           <div className="flex items-center justify-center py-20">
             <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
@@ -174,16 +175,16 @@ export default function Home() {
                   </div>
                   <span className="text-gray-300">|</span>
                   <div className="flex items-center gap-2">
-                    <span className="w-4 h-4 rounded-full border-2 border-gray-300" />
-                    High Exp. (larger)
+                    <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                    Available
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full border-2 border-gray-300" />
-                    Medium
+                    <span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
+                    On Assignment
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full border-2 border-gray-300" />
-                    Low
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                    Unavailable
                   </div>
                 </div>
               </div>

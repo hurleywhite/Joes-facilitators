@@ -4,16 +4,69 @@ import {
   Focus,
   ExperienceLevel,
   Engagement,
+  Availability,
+  Region,
 } from "@/types/facilitator";
 
 /**
- * Fetches facilitator data from a Google Sheet exported as CSV.
- *
- * NEW engagement format — separate columns, most recent first:
- *   Eng 1 Name | Eng 1 Status | Eng 1 Date | Eng 2 Name | Eng 2 Status | Eng 2 Date | ...
- *
- * Also supports the legacy pipe/semicolon format in "Engagement History" column.
+ * Country → Region mapping for auto-deriving region from country.
  */
+const countryToRegion: Record<string, Region> = {
+  usa: "Americas",
+  "united states": "Americas",
+  canada: "Americas",
+  mexico: "Americas",
+  brazil: "Americas",
+  uk: "Europe",
+  "united kingdom": "Europe",
+  ireland: "Europe",
+  germany: "Europe",
+  france: "Europe",
+  italy: "Europe",
+  spain: "Europe",
+  portugal: "Europe",
+  sweden: "Europe",
+  switzerland: "Europe",
+  netherlands: "Europe",
+  india: "Asia-Pacific",
+  japan: "Asia-Pacific",
+  "south korea": "Asia-Pacific",
+  singapore: "Asia-Pacific",
+  australia: "Asia-Pacific",
+  china: "Asia-Pacific",
+  israel: "Middle East & Africa",
+  uae: "Middle East & Africa",
+  "saudi arabia": "Middle East & Africa",
+  egypt: "Middle East & Africa",
+  nigeria: "Middle East & Africa",
+  kenya: "Middle East & Africa",
+  "south africa": "Middle East & Africa",
+  dubai: "Middle East & Africa",
+};
+
+function deriveRegion(country: string): Region {
+  const key = country.toLowerCase().trim();
+  return countryToRegion[key] || "Americas";
+}
+
+/**
+ * Derives availability from the Current Engagement field if not explicitly set.
+ */
+function deriveAvailability(
+  explicit: string,
+  currentEngagement: string | null
+): Availability {
+  if (explicit) {
+    const lower = explicit.toLowerCase();
+    if (lower === "available") return "Available";
+    if (lower.includes("assignment") || lower.includes("busy")) return "On Assignment";
+    if (lower === "unavailable") return "Unavailable";
+  }
+  // Auto-derive: if they have a current engagement, they're on assignment
+  if (currentEngagement) return "On Assignment";
+  return "Available";
+}
+
 export async function fetchFromGoogleSheet(
   sheetUrl: string
 ): Promise<Facilitator[]> {
@@ -35,10 +88,17 @@ export async function fetchFromGoogleSheet(
 
       // NEW FORMAT: Read Eng 1, Eng 2, Eng 3... columns (most recent first)
       for (let n = 1; n <= 10; n++) {
-        const engName = getCol(row, [`Eng ${n} Name`, `Eng${n} Name`, `Engagement ${n} Name`, `Engagement ${n}`]);
-        if (!engName) break; // stop at first empty slot
-        const engStatus = getCol(row, [`Eng ${n} Status`, `Eng${n} Status`, `Engagement ${n} Status`]) || "Completed";
-        const engDate = getCol(row, [`Eng ${n} Date`, `Eng${n} Date`, `Engagement ${n} Date`]) || "";
+        const engName = getCol(row, [
+          `Eng ${n} Name`, `Eng${n} Name`,
+          `Engagement ${n} Name`, `Engagement ${n}`,
+        ]);
+        if (!engName) break;
+        const engStatus = getCol(row, [
+          `Eng ${n} Status`, `Eng${n} Status`, `Engagement ${n} Status`,
+        ]) || "Completed";
+        const engDate = getCol(row, [
+          `Eng ${n} Date`, `Eng${n} Date`, `Engagement ${n} Date`,
+        ]) || "";
         engagements.push({
           name: engName,
           status: engStatus as Engagement["status"],
@@ -46,7 +106,7 @@ export async function fetchFromGoogleSheet(
         });
       }
 
-      // LEGACY FORMAT: fall back to pipe/semicolon "Engagement History" column
+      // LEGACY FORMAT: fall back to pipe/semicolon
       if (engagements.length === 0) {
         const engHistory = getCol(row, ["Engagement History", "Engagements"]);
         if (engHistory) {
@@ -63,31 +123,32 @@ export async function fetchFromGoogleSheet(
         }
       }
 
+      const country = getCol(row, ["Country"]);
+      const currentEngagement =
+        getCol(row, ["Current Engagement", "Current", "Active Engagement"]) || null;
+      const explicitAvailability = getCol(row, ["Availability", "Status"]);
+
       return {
         id: String(i + 1),
         name: getCol(row, ["Name"]),
         photoUrl: getCol(row, ["Photo URL", "Photo", "Photo Url", "Image URL", "Image"]),
         linkedinUrl: getCol(row, ["LinkedIn URL", "LinkedIn", "LinkedIn Url", "LI URL"]),
         focus: (getCol(row, ["Focus"]) || "Facilitation") as Focus,
-        experienceLevel: (getCol(row, ["Experience Level", "Experience", "Exp Level", "Exp"]) || "Medium") as ExperienceLevel,
-        location: `${getCol(row, ["City"])}, ${getCol(row, ["Country"])}`,
+        experienceLevel: (getCol(row, ["Experience Level", "Experience"]) || "Medium") as ExperienceLevel,
+        availability: deriveAvailability(explicitAvailability, currentEngagement),
+        region: (getCol(row, ["Region"]) as Region) || deriveRegion(country),
+        location: `${getCol(row, ["City"])}, ${country}`,
         city: getCol(row, ["City"]),
-        country: getCol(row, ["Country"]),
+        country,
         lat: parseFloat(getCol(row, ["Lat", "Latitude"]) || "0"),
         lng: parseFloat(getCol(row, ["Lng", "Lon", "Long", "Longitude"]) || "0"),
         bio: getCol(row, ["Bio", "Description", "About"]),
         engagements,
-        currentEngagement:
-          getCol(row, ["Current Engagement", "Current", "Active Engagement"]) ||
-          null,
+        currentEngagement,
       };
     });
 }
 
-/**
- * Flexible column getter — tries multiple possible header names.
- * Returns trimmed value or empty string.
- */
 function getCol(row: Record<string, string>, possibleNames: string[]): string {
   for (const name of possibleNames) {
     const val = row[name];
@@ -102,9 +163,6 @@ function getCol(row: Record<string, string>, possibleNames: string[]): string {
   return "";
 }
 
-/**
- * Converts a standard Google Sheets sharing URL to a CSV export URL.
- */
 export function toGoogleSheetCsvUrl(shareUrl: string): string {
   const match = shareUrl.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
   if (match) {

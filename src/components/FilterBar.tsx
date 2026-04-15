@@ -9,6 +9,10 @@ interface FilterBarProps {
   onFocusChange: (v: string) => void;
   expFilter: string;
   onExpChange: (v: string) => void;
+  availFilter: string;
+  onAvailChange: (v: string) => void;
+  regionFilter: string;
+  onRegionChange: (v: string) => void;
   view: "cards" | "map";
   onViewChange: (v: "cards" | "map") => void;
   totalCount: number;
@@ -22,6 +26,10 @@ export default function FilterBar({
   onFocusChange,
   expFilter,
   onExpChange,
+  availFilter,
+  onAvailChange,
+  regionFilter,
+  onRegionChange,
   view,
   onViewChange,
   totalCount,
@@ -41,33 +49,6 @@ export default function FilterBar({
             className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
           />
         </div>
-
-        {/* Focus filter */}
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-400" />
-          <select
-            value={focusFilter}
-            onChange={(e) => onFocusChange(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
-          >
-            <option value="All">All Focus</option>
-            <option value="Facilitation">Facilitation</option>
-            <option value="Tech">Tech</option>
-            <option value="Both">Both</option>
-          </select>
-        </div>
-
-        {/* Experience filter */}
-        <select
-          value={expFilter}
-          onChange={(e) => onExpChange(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
-        >
-          <option value="All">All Experience</option>
-          <option value="High">High</option>
-          <option value="Medium">Medium</option>
-          <option value="Low">Low</option>
-        </select>
 
         {/* View toggle */}
         <div className="flex border border-gray-200 rounded-lg overflow-hidden">
@@ -94,6 +75,76 @@ export default function FilterBar({
             Map
           </button>
         </div>
+      </div>
+
+      {/* Filter row */}
+      <div className="flex flex-wrap items-center gap-2 mt-3">
+        <Filter className="w-4 h-4 text-gray-400" />
+
+        {/* Availability filter */}
+        <select
+          value={availFilter}
+          onChange={(e) => onAvailChange(e.target.value)}
+          className={`border rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
+            availFilter !== "All"
+              ? "border-green-400 text-green-700 bg-green-50"
+              : "border-gray-200"
+          }`}
+        >
+          <option value="All">All Availability</option>
+          <option value="Available">🟢 Available</option>
+          <option value="On Assignment">🟡 On Assignment</option>
+          <option value="Unavailable">🔴 Unavailable</option>
+        </select>
+
+        {/* Region filter */}
+        <select
+          value={regionFilter}
+          onChange={(e) => onRegionChange(e.target.value)}
+          className={`border rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
+            regionFilter !== "All"
+              ? "border-indigo-400 text-indigo-700 bg-indigo-50"
+              : "border-gray-200"
+          }`}
+        >
+          <option value="All">All Regions</option>
+          <option value="Americas">Americas</option>
+          <option value="Europe">Europe</option>
+          <option value="Asia-Pacific">Asia-Pacific</option>
+          <option value="Middle East & Africa">Middle East & Africa</option>
+        </select>
+
+        {/* Focus filter */}
+        <select
+          value={focusFilter}
+          onChange={(e) => onFocusChange(e.target.value)}
+          className={`border rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
+            focusFilter !== "All"
+              ? "border-purple-400 text-purple-700 bg-purple-50"
+              : "border-gray-200"
+          }`}
+        >
+          <option value="All">All Focus</option>
+          <option value="Facilitation">Facilitation</option>
+          <option value="Tech">Tech</option>
+          <option value="Both">Both</option>
+        </select>
+
+        {/* Experience filter */}
+        <select
+          value={expFilter}
+          onChange={(e) => onExpChange(e.target.value)}
+          className={`border rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
+            expFilter !== "All"
+              ? "border-amber-400 text-amber-700 bg-amber-50"
+              : "border-gray-200"
+          }`}
+        >
+          <option value="All">All Experience</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
+        </select>
       </div>
 
       {/* Results count */}
