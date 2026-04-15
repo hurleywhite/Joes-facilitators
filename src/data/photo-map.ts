@@ -28,7 +28,9 @@ const linkedinToPhoto: Record<string, string> = {
   "jodie-cook": "/photos/jodie_cook.jpg",           // jodiecook.com
   rowancheung: "/photos/rowancheung.jpg",           // rowancheung.com
   gregisenberg: "/photos/gregisenberg.jpg",         // Late Checkout Substack
+  gisenberg: "/photos/gregisenberg.jpg",            // alternate LinkedIn URL
   rubenhassid: "/photos/rubenhassid.jpg",           // Global Authority Magazine
+  "ruben-hassid": "/photos/rubenhassid.jpg",        // alternate LinkedIn URL
 };
 
 /**
