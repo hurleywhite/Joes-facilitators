@@ -5,7 +5,7 @@ import { Facilitator } from "@/types/facilitator";
 import FacilitatorCard from "@/components/FacilitatorCard";
 import FilterBar from "@/components/FilterBar";
 import StatsBar from "@/components/StatsBar";
-import { RefreshCw, Globe2 } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 // Lazy-load the map since Leaflet is client-only and heavy
 const MapView = lazy(() => import("@/components/MapView"));
@@ -61,9 +61,11 @@ export default function Home() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-600 rounded-lg">
-              <Globe2 className="w-6 h-6 text-white" />
-            </div>
+            <img
+              src="/logo.avif"
+              alt="ArcticMind"
+              className="h-10 w-auto"
+            />
             <div>
               <h1 className="text-xl font-bold text-gray-900">
                 Facilitator Pool
@@ -88,7 +90,11 @@ export default function Home() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
         {/* Stats */}
-        <StatsBar facilitators={facilitators} />
+        <StatsBar
+          facilitators={facilitators}
+          activeFocus={focusFilter}
+          onFocusClick={(focus) => setFocusFilter(focus === focusFilter ? "All" : focus)}
+        />
 
         {/* Filters */}
         <FilterBar
