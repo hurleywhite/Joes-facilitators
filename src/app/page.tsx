@@ -24,7 +24,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/facilitators");
+      const res = await fetch(`/api/facilitators?t=${Date.now()}`);
       if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
       setFacilitators(data);
