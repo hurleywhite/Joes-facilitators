@@ -24,7 +24,7 @@ const linkedinToPhoto: Record<string, string> = {
   "sairam-sundaresan": "/photos/dsaience.jpg",
   "anna-york": "/photos/anna-york.webp",
   "anna-york-seo": "/photos/anna-york.webp",
-  "madhav-mistry": "/photos/mistrymad.jpg",
+  // madhav-mistry: no real photo available — falls through to DiceBear
   "jodie-cook": "/photos/jodie_cook.png",
   rowancheung: "/photos/rowancheung.jpg",
   gregisenberg: "/photos/gregisenberg.jpg",

@@ -132,7 +132,7 @@ export async function fetchFromGoogleSheet(
         id: String(i + 1),
         name: getCol(row, ["Name"]),
         photoUrl: getCol(row, ["Photo URL", "Photo", "Photo Url", "Image URL", "Image"]),
-        linkedinUrl: getCol(row, ["LinkedIn URL", "LinkedIn", "LinkedIn Url", "LI URL"]),
+        linkedinUrl: ensureFullUrl(getCol(row, ["LinkedIn URL", "LinkedIn", "LinkedIn Url", "LI URL"])),
         focus: (getCol(row, ["Focus"]) || "Facilitation") as Focus,
         experienceLevel: (getCol(row, ["Experience Level", "Experience"]) || "Medium") as ExperienceLevel,
         availability: deriveAvailability(explicitAvailability, currentEngagement),
@@ -147,6 +147,16 @@ export async function fetchFromGoogleSheet(
         currentEngagement,
       };
     });
+}
+
+/**
+ * Ensures a URL has https:// prefix. Handles cases where the sheet
+ * has "linkedin.com/in/..." instead of "https://www.linkedin.com/in/..."
+ */
+function ensureFullUrl(url: string): string {
+  if (!url) return url;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  return `https://www.${url}`;
 }
 
 function getCol(row: Record<string, string>, possibleNames: string[]): string {
