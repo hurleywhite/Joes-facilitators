@@ -9,13 +9,10 @@ import {
 /**
  * Fetches facilitator data from a Google Sheet exported as CSV.
  *
- * Flexible column matching — handles both the ideal schema and common variations:
- *   - "Photo URL" or "Photo"
- *   - "LinkedIn URL" or "LinkedIn"
- *   - "Experience Level" or "Experience"
- *   - "Engagement History" or "Engagements" (pipe/semicolon format)
- *   - "Current Engagement" or "Current"
- *   - "# Engagements" (just a count — used if Engagement History is missing)
+ * NEW engagement format — separate columns, most recent first:
+ *   Eng 1 Name | Eng 1 Status | Eng 1 Date | Eng 2 Name | Eng 2 Status | Eng 2 Date | ...
+ *
+ * Also supports the legacy pipe/semicolon format in "Engagement History" column.
  */
 export async function fetchFromGoogleSheet(
   sheetUrl: string
@@ -34,24 +31,36 @@ export async function fetchFromGoogleSheet(
   return parsed.data
     .filter((row) => getCol(row, ["Name"]).length > 0)
     .map((row, i) => {
-      // Parse engagement history if present
       const engagements: Engagement[] = [];
-      const engHistory = getCol(row, [
-        "Engagement History",
-        "Engagements",
-      ]);
-      if (engHistory) {
-        engHistory.split(";").forEach((entry) => {
-          const parts = entry.trim().split("|");
-          if (parts.length >= 3) {
-            engagements.push({
-              name: parts[0].trim(),
-              status:
-                (parts[1].trim() as Engagement["status"]) || "Completed",
-              date: parts[2].trim(),
-            });
-          }
+
+      // NEW FORMAT: Read Eng 1, Eng 2, Eng 3... columns (most recent first)
+      for (let n = 1; n <= 10; n++) {
+        const engName = getCol(row, [`Eng ${n} Name`, `Eng${n} Name`, `Engagement ${n} Name`, `Engagement ${n}`]);
+        if (!engName) break; // stop at first empty slot
+        const engStatus = getCol(row, [`Eng ${n} Status`, `Eng${n} Status`, `Engagement ${n} Status`]) || "Completed";
+        const engDate = getCol(row, [`Eng ${n} Date`, `Eng${n} Date`, `Engagement ${n} Date`]) || "";
+        engagements.push({
+          name: engName,
+          status: engStatus as Engagement["status"],
+          date: engDate,
         });
+      }
+
+      // LEGACY FORMAT: fall back to pipe/semicolon "Engagement History" column
+      if (engagements.length === 0) {
+        const engHistory = getCol(row, ["Engagement History", "Engagements"]);
+        if (engHistory) {
+          engHistory.split(";").forEach((entry) => {
+            const parts = entry.trim().split("|");
+            if (parts.length >= 3) {
+              engagements.push({
+                name: parts[0].trim(),
+                status: (parts[1].trim() as Engagement["status"]) || "Completed",
+                date: parts[2].trim(),
+              });
+            }
+          });
+        }
       }
 
       return {
@@ -84,7 +93,6 @@ function getCol(row: Record<string, string>, possibleNames: string[]): string {
     const val = row[name];
     if (val !== undefined && val !== null) {
       const trimmed = val.trim();
-      // Treat em dashes, hyphens-as-placeholder, and "N/A" as empty
       if (trimmed === "—" || trimmed === "-" || trimmed.toLowerCase() === "n/a") {
         return "";
       }
