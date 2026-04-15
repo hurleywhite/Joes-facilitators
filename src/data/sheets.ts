@@ -82,7 +82,14 @@ export async function fetchFromGoogleSheet(
 function getCol(row: Record<string, string>, possibleNames: string[]): string {
   for (const name of possibleNames) {
     const val = row[name];
-    if (val !== undefined && val !== null) return val.trim();
+    if (val !== undefined && val !== null) {
+      const trimmed = val.trim();
+      // Treat em dashes, hyphens-as-placeholder, and "N/A" as empty
+      if (trimmed === "—" || trimmed === "-" || trimmed.toLowerCase() === "n/a") {
+        return "";
+      }
+      return trimmed;
+    }
   }
   return "";
 }
