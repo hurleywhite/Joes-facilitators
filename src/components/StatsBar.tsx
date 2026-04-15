@@ -1,7 +1,7 @@
 "use client";
 
 import { Facilitator } from "@/types/facilitator";
-import { Users, Monitor, Sparkles, Globe } from "lucide-react";
+import { Users, Monitor, Globe, Contact } from "lucide-react";
 
 interface StatsBarProps {
   facilitators: Facilitator[];
@@ -27,7 +27,7 @@ export default function StatsBar({
       label: "Total",
       filterKey: "All",
       value: total,
-      icon: <Users className="w-5 h-5" />,
+      icon: <Contact className="w-5 h-5" />,
       color: "text-indigo-600 bg-indigo-50",
       activeRing: "ring-2 ring-indigo-400",
     },
@@ -51,7 +51,12 @@ export default function StatsBar({
       label: "Both",
       filterKey: "Both",
       value: bothCount,
-      icon: <Sparkles className="w-5 h-5" />,
+      icon: (
+        <span className="inline-flex items-center -space-x-1">
+          <Users className="w-4 h-4" />
+          <Monitor className="w-4 h-4" />
+        </span>
+      ),
       color: "text-purple-600 bg-purple-50",
       activeRing: "ring-2 ring-purple-400",
     },
