@@ -65,13 +65,20 @@ export default function ProposalsPage() {
       if (data.error) {
         setSlackStatus(`⚠️ ${data.error}`);
       } else if (data.messages && data.messages.length > 0) {
-        // Append to existing context (don't overwrite)
         const prefix = context.trim() ? `${context.trim()}\n\n--- From Slack ---\n` : "";
         setContext(`${prefix}${data.summary}`);
         setSlackMessageCount(data.messages.length);
-        setSlackStatus(`✅ Pulled ${data.messages.length} Slack message${data.messages.length !== 1 ? "s" : ""}`);
+        setSlackStatus(
+          `✅ Pulled ${data.messages.length} message${data.messages.length !== 1 ? "s" : ""} from ${data.channelsSearched} channel${data.channelsSearched !== 1 ? "s" : ""}`
+        );
+      } else if (data.channelsSearched === 0) {
+        setSlackStatus(
+          `⚠️ Bot not in any channels yet. In Slack, run: /invite @Proposal Generator in any channel you want searchable.`
+        );
       } else {
-        setSlackStatus(`No Slack messages found for "${clientName}"`);
+        setSlackStatus(
+          `No mentions of "${clientName}" in ${data.channelsSearched} connected channel${data.channelsSearched !== 1 ? "s" : ""}`
+        );
       }
     } catch (err) {
       setSlackStatus(err instanceof Error ? err.message : "Failed to reach Slack");
