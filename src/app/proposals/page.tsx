@@ -11,7 +11,7 @@ import {
   Loader2,
   Sparkles,
   Users,
-  Info,
+  MessageSquare,
 } from "lucide-react";
 import { Facilitator } from "@/types/facilitator";
 import { ProposalOutput } from "@/types/proposal";
@@ -42,6 +42,43 @@ export default function ProposalsPage() {
   // Recommendation + selection
   const [recommended, setRecommended] = useState<Facilitator[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Slack research state
+  const [slackLoading, setSlackLoading] = useState(false);
+  const [slackStatus, setSlackStatus] = useState<string | null>(null);
+  const [slackMessageCount, setSlackMessageCount] = useState(0);
+
+  const handlePullSlackContext = async () => {
+    if (!clientName.trim()) {
+      setSlackStatus("Enter a client name first");
+      return;
+    }
+    setSlackLoading(true);
+    setSlackStatus(null);
+    try {
+      const res = await fetch("/api/proposals/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: clientName }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setSlackStatus(`⚠️ ${data.error}`);
+      } else if (data.messages && data.messages.length > 0) {
+        // Append to existing context (don't overwrite)
+        const prefix = context.trim() ? `${context.trim()}\n\n--- From Slack ---\n` : "";
+        setContext(`${prefix}${data.summary}`);
+        setSlackMessageCount(data.messages.length);
+        setSlackStatus(`✅ Pulled ${data.messages.length} Slack message${data.messages.length !== 1 ? "s" : ""}`);
+      } else {
+        setSlackStatus(`No Slack messages found for "${clientName}"`);
+      }
+    } catch (err) {
+      setSlackStatus(err instanceof Error ? err.message : "Failed to reach Slack");
+    } finally {
+      setSlackLoading(false);
+    }
+  };
 
   const handleResearch = async () => {
     setError(null);
@@ -192,19 +229,6 @@ export default function ProposalsPage() {
               </p>
             </div>
 
-            {/* Future: Slack/Gmail integration callout */}
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-              <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <div className="text-sm font-semibold text-amber-900">
-                  Auto-pull from Slack & Gmail (coming soon)
-                </div>
-                <p className="text-xs text-amber-800 mt-0.5">
-                  Once connected, enter a company name and the agent will pull recent Slack threads and email context automatically — no manual typing. Requires Slack bot token + Gmail OAuth setup in Vercel.
-                </p>
-              </div>
-            </div>
-
             <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
               <Field label="Client / Company name" required>
                 <input
@@ -217,15 +241,32 @@ export default function ProposalsPage() {
               </Field>
 
               <Field label="Context — what you know about the deal">
+                <div className="flex items-center gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={handlePullSlackContext}
+                    disabled={!clientName.trim() || slackLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {slackLoading ? (
+                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Searching Slack...</>
+                    ) : (
+                      <><MessageSquare className="w-3.5 h-3.5" /> Pull context from Slack</>
+                    )}
+                  </button>
+                  {slackStatus && (
+                    <span className="text-xs text-gray-500">{slackStatus}</span>
+                  )}
+                </div>
                 <textarea
                   value={context}
                   onChange={(e) => setContext(e.target.value)}
-                  rows={4}
+                  rows={slackMessageCount > 0 ? 10 : 4}
                   placeholder="e.g., $10M RR self-funded biz. CEO wants 1:1 AI training starting from zero. Kicking off in June. Sub'd from Andrew Hoag."
                   className={inputClass}
                 />
                 <p className="text-xs text-gray-400 mt-1">
-                  Paste Slack messages, email threads, or notes. The more context, the better the proposal.
+                  Click the Slack button to auto-pull mentions of the company, or paste context manually.
                 </p>
               </Field>
 
