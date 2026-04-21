@@ -15,11 +15,7 @@ export default function ProposalPreview({
       {/* Header */}
       <div className="border-b-2 border-indigo-600 pb-6 mb-8">
         <div className="flex items-center gap-3 mb-4">
-          <img
-            src="/logo.avif"
-            alt="ArcticBlue"
-            className="h-10 w-auto"
-          />
+          <img src="/logo.avif" alt="ArcticBlue" className="h-10 w-auto" />
           <span className="text-xs text-gray-400 uppercase tracking-widest">
             AI Training & Advisory
           </span>
@@ -30,14 +26,12 @@ export default function ProposalPreview({
         <p className="text-lg text-gray-500 mt-2">{proposal.subtitle}</p>
       </div>
 
-      {/* Sections */}
       <div className="space-y-8">
         {proposal.sections.map((section, i) => (
           <SectionView key={i} section={section} />
         ))}
       </div>
 
-      {/* Footer */}
       <div className="border-t border-gray-200 mt-12 pt-6 text-center text-xs text-gray-400">
         ArcticBlue AI · arcticblue.ai · Confidential
       </div>
@@ -46,7 +40,8 @@ export default function ProposalPreview({
 }
 
 function SectionView({ section }: { section: ProposalSection }) {
-  const HeadingTag = section.level === 2 ? "h2" : section.level === 3 ? "h3" : "h1";
+  const HeadingTag =
+    section.level === 2 ? "h2" : section.level === 3 ? "h3" : "h1";
   const headingClass =
     section.level === 2
       ? "text-2xl font-bold text-gray-900 mt-8 mb-3 pb-2 border-b border-gray-100"
@@ -122,7 +117,6 @@ function SectionView({ section }: { section: ProposalSection }) {
 }
 
 function renderInlineFormatting(text: string): string {
-  // Bold markdown
   return text
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\n/g, "<br/>");

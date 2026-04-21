@@ -22,36 +22,23 @@ export type ProposalTimelineItem = {
 };
 
 export type ProposalInput = {
-  // Meta
   clientName: string;
-  partnerName?: string; // e.g., "Capgemini" if prime contractor
-  endClientName?: string; // e.g., "Scout Motors" if delivered via partner
+  partnerName?: string;
+  endClientName?: string;
   documentType: "Proposal" | "Discussion Document";
-  monthYear: string; // "April 2026"
-
-  // Context
-  clientContext: string; // 2-3 paragraphs about why now, their situation
-  currentState: string[]; // bullets about what they've already done
-
-  // Program
+  monthYear: string;
+  clientContext: string;
+  currentState: string[];
   tracks: ProposalTrack[];
-
-  // Logistics
   location: string;
   deliveryMonth: string;
   timelineItems: ProposalTimelineItem[];
-
-  // Discovery
   discoveryDescription: string;
-
-  // Pricing
   pricingLines: ProposalPricingLine[];
   totalLocal?: string;
   totalUSD: string;
   ongoingOption?: string;
-
-  // Close
-  whyArcticBlueCustom?: string; // optional custom addition
+  whyArcticBlueCustom?: string;
 };
 
 export type ProposalOutput = {
@@ -64,7 +51,7 @@ export type ProposalOutput = {
 export type ProposalSection = {
   heading: string;
   level: 1 | 2 | 3;
-  content: string[]; // paragraphs
+  content: string[];
   bullets?: string[];
   table?: {
     headers: string[];
