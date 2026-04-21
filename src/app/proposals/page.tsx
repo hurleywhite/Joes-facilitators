@@ -64,20 +64,24 @@ export default function ProposalsPage() {
       const data = await res.json();
       if (data.error) {
         setSlackStatus(`⚠️ ${data.error}`);
-      } else if (data.messages && data.messages.length > 0) {
-        const prefix = context.trim() ? `${context.trim()}\n\n--- From Slack ---\n` : "";
-        setContext(`${prefix}${data.summary}`);
-        setSlackMessageCount(data.messages.length);
-        setSlackStatus(
-          `✅ Pulled ${data.messages.length} message${data.messages.length !== 1 ? "s" : ""} from ${data.channelsSearched} channel${data.channelsSearched !== 1 ? "s" : ""}`
-        );
       } else if (data.channelsSearched === 0) {
         setSlackStatus(
           `⚠️ Bot not in any channels yet. In Slack, run: /invite @Proposal Generator in any channel you want searchable.`
         );
+      } else if (data.summary && data.summary.trim()) {
+        const prefix = context.trim()
+          ? `${context.trim()}\n\n--- From Slack ---\n`
+          : "";
+        setContext(`${prefix}${data.summary}`);
+        const rawCount = data.rawMessages?.length || 0;
+        setSlackMessageCount(rawCount);
+        const modeLabel = data.usedAgent ? "🤖 Agent" : "📋 Heuristic";
+        setSlackStatus(
+          `✅ ${modeLabel} · analyzed ${rawCount} message${rawCount !== 1 ? "s" : ""} across ${data.channelsSearched} channel${data.channelsSearched !== 1 ? "s" : ""}`
+        );
       } else {
         setSlackStatus(
-          `No mentions of "${clientName}" in ${data.channelsSearched} connected channel${data.channelsSearched !== 1 ? "s" : ""}`
+          `No context found for "${clientName}" in ${data.channelsSearched} connected channel${data.channelsSearched !== 1 ? "s" : ""}`
         );
       }
     } catch (err) {
