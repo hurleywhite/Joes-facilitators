@@ -134,6 +134,30 @@ export default function FacilitatorCard({ f }: { f: Facilitator }) {
         {/* Bio */}
         <p className="text-sm text-gray-600 mt-3 line-clamp-2">{f.bio}</p>
 
+        {/* Languages and Industries */}
+        {(f.languages?.length > 0 || f.industryExperience?.length > 0) && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {f.languages?.slice(0, 3).map((lang) => (
+              <span
+                key={`lang-${lang}`}
+                className="text-[10px] px-1.5 py-0.5 bg-cyan-50 text-cyan-700 border border-cyan-100 rounded-full"
+                title="Language"
+              >
+                {lang}
+              </span>
+            ))}
+            {f.industryExperience?.slice(0, 2).map((ind) => (
+              <span
+                key={`ind-${ind}`}
+                className="text-[10px] px-1.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-100 rounded-full"
+                title="Industry experience"
+              >
+                {ind}
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* Engagements summary */}
         <div className="mt-3 flex items-center justify-between">
           <div className="text-xs text-gray-500">

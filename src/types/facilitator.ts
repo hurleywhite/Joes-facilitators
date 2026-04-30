@@ -15,6 +15,8 @@ export interface Facilitator {
   name: string;
   photoUrl: string;
   linkedinUrl: string;
+  email?: string;
+  website?: string;
   focus: Focus;
   experienceLevel: ExperienceLevel;
   availability: Availability;
@@ -25,6 +27,10 @@ export interface Facilitator {
   lat: number;
   lng: number;
   bio: string;
+  languages: string[];
+  industryExperience: string[];
+  employmentStatus?: string;
+  notes?: string;
   engagements: Engagement[];
   currentEngagement: string | null;
 }
