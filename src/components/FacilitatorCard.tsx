@@ -109,21 +109,25 @@ export default function FacilitatorCard({ f }: { f: Facilitator }) {
               <h3 className="font-semibold text-gray-900 text-lg truncate">
                 {f.name}
               </h3>
-              <a
-                href={f.linkedinUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-800 flex-shrink-0 text-xs font-medium"
-                title="View LinkedIn Profile"
-              >
-                <span className="font-bold">in</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
+              {f.linkedinUrl && f.linkedinUrl.startsWith("http") && (
+                <a
+                  href={f.linkedinUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-800 flex-shrink-0 text-xs font-medium"
+                  title="View LinkedIn Profile"
+                >
+                  <span className="font-bold">in</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
             </div>
-            <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
-              <MapPin className="w-3.5 h-3.5" />
-              <span className="truncate">{f.location}</span>
-            </div>
+            {f.location && (
+              <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
+                <MapPin className="w-3.5 h-3.5" />
+                <span className="truncate">{f.location}</span>
+              </div>
+            )}
             <div className="flex flex-wrap gap-1.5 mt-2.5">
               {focusBadge(f.focus)}
               {experienceBadge(f.experienceLevel)}

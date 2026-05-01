@@ -228,18 +228,43 @@ export async function fetchFromGoogleSheet(
     });
 }
 
+/**
+ * Looks like a real URL (has a domain dot, no spaces).
+ * Rejects placeholder text like "LinkedIn Profile", "TBD", etc.
+ */
+function looksLikeUrl(s: string): boolean {
+  if (!s) return false;
+  if (s.includes(" ")) return false; // URLs don't have spaces
+  if (!s.includes(".")) return false; // need a domain
+  return /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(s) || /^https?:\/\//.test(s);
+}
+
 function ensureFullUrl(url: string): string {
   if (!url) return url;
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (!looksLikeUrl(url)) return ""; // placeholder text, not a URL
   return `https://www.${url}`;
 }
+
+const PLACEHOLDER_VALUES = new Set([
+  "—",
+  "-",
+  "n/a",
+  "tbd",
+  "linkedin profile",
+  "linkedin",
+  "url",
+  "website",
+  "?",
+  "",
+]);
 
 function getCol(row: Record<string, string>, possibleNames: string[]): string {
   for (const name of possibleNames) {
     const val = row[name];
     if (val !== undefined && val !== null) {
       const trimmed = val.trim();
-      if (trimmed === "—" || trimmed === "-" || trimmed.toLowerCase() === "n/a") {
+      if (PLACEHOLDER_VALUES.has(trimmed.toLowerCase())) {
         return "";
       }
       return trimmed;
