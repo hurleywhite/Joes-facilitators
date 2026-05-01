@@ -45,7 +45,7 @@ export function generateBio(
 /**
  * Combines experience level and focus into a single grammatical sentence.
  */
-function experienceFocusOpener(experience: string, focus: string): string {
+function experienceFocusOpener(experience: string, focus?: string): string {
   const exp =
     experience === "High"
       ? "Senior"
@@ -58,7 +58,9 @@ function experienceFocusOpener(experience: string, focus: string): string {
       ? "facilitator who designs and runs hands-on workshops that turn AI theory into team capability"
       : focus === "Tech"
         ? "technical AI trainer with hands-on experience implementing AI in enterprise environments"
-        : "AI practitioner who bridges strategic facilitation and technical depth — equally comfortable leading executive sessions and hands-on workshops";
+        : focus === "Both"
+          ? "AI practitioner who bridges strategic facilitation and technical depth — equally comfortable leading executive sessions and hands-on workshops"
+          : "facilitator with experience delivering AI workshops and training programs";
 
   return `${exp} ${role}.`;
 }

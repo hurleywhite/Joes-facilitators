@@ -5,7 +5,7 @@ import { Facilitator } from "@/types/facilitator";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-function focusColor(focus: string): string {
+function focusColor(focus: string | undefined): string {
   switch (focus) {
     case "Facilitation":
       return "#3b82f6"; // blue
@@ -14,7 +14,7 @@ function focusColor(focus: string): string {
     case "Both":
       return "#8b5cf6"; // purple
     default:
-      return "#6b7280";
+      return "#9ca3af"; // gray for unspecified
   }
 }
 
@@ -100,7 +100,7 @@ export default function MapView({
           <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${f.name}</div>
           <div style="color:#666;font-size:12px;margin-bottom:6px;">${f.location}</div>
           <div style="display:flex;gap:4px;margin-bottom:6px;">
-            <span style="background:${color}20;color:${color};padding:2px 6px;border-radius:10px;font-size:11px;font-weight:500;">${f.focus}</span>
+            <span style="background:${color}20;color:${color};padding:2px 6px;border-radius:10px;font-size:11px;font-weight:500;">${f.focus || "Focus TBD"}</span>
             <span style="background:#f3f4f6;color:#374151;padding:2px 6px;border-radius:10px;font-size:11px;font-weight:500;">${f.experienceLevel}</span>
           </div>
           <div style="font-size:11px;color:#888;">${completedCount} engagement${completedCount !== 1 ? "s" : ""} completed</div>

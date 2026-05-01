@@ -5,21 +5,31 @@ import { getPhotoUrl } from "@/data/photo-map";
 import { Facilitator } from "@/types/facilitator";
 import { resolveCoords } from "@/lib/geocode";
 import { generateBio } from "@/lib/bio-enrich";
+import { fetchLinkedInMetadata } from "@/lib/linkedin-enrich";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 /**
  * Enriches facilitator data:
- *   - photoUrl: lookup from local photos via LinkedIn handle
- *   - lat/lng: geocode from location (static lookup, fast)
- *   - bio: template-generated from focus/experience/industries if missing
+ *   - photoUrl: spreadsheet > LinkedIn og:image > local photo map > DiceBear
+ *   - lat/lng: geocode from location
+ *   - bio: spreadsheet > LinkedIn og:description > template
  */
 async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
   return Promise.all(
     facilitators.map(async (f) => {
-      // Photo
-      const photoUrl = f.photoUrl || getPhotoUrl(f.linkedinUrl, f.name);
+      // Try LinkedIn metadata first (cached per instance)
+      const liData =
+        (!f.bio || !f.photoUrl) && f.linkedinUrl
+          ? await fetchLinkedInMetadata(f.linkedinUrl).catch(() => null)
+          : null;
+
+      // Photo: spreadsheet > LinkedIn og:image > local photo map > DiceBear
+      const photoUrl =
+        f.photoUrl ||
+        liData?.imageUrl ||
+        getPhotoUrl(f.linkedinUrl, f.name);
 
       // Coords
       let lat = f.lat;
@@ -32,15 +42,30 @@ async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
         }
       }
 
-      // Bio
-      const bio =
-        f.bio && f.bio.length > 20
-          ? f.bio
-          : generateBio(f);
+      // Bio: spreadsheet > LinkedIn og:description (cleaned) > template
+      let bio = f.bio;
+      if (!bio || bio.length < 20) {
+        if (liData?.description && liData.description.length > 30) {
+          bio = cleanLinkedInDescription(liData.description);
+        } else {
+          bio = generateBio(f);
+        }
+      }
 
       return { ...f, photoUrl, lat, lng, bio };
     })
   );
+}
+
+/**
+ * LinkedIn descriptions often start with "[Name]'s Post on LinkedIn" or
+ * include trailing "...| LinkedIn". Strip these.
+ */
+function cleanLinkedInDescription(desc: string): string {
+  return desc
+    .replace(/\s*\|\s*LinkedIn\s*$/i, "")
+    .replace(/^[^.]*'s Post on LinkedIn\.?\s*/i, "")
+    .trim();
 }
 
 export async function GET() {

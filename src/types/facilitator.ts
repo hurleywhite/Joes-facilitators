@@ -17,10 +17,11 @@ export interface Facilitator {
   linkedinUrl: string;
   email?: string;
   website?: string;
-  focus: Focus;
+  focus?: Focus; // optional — undefined means not yet categorized in sheet
   experienceLevel: ExperienceLevel;
   availability: Availability;
   region: Region;
+  tier?: string; // Joe's tier rating from sheet (e.g., "Yes", "Tier 1")
   location: string;
   city: string;
   country: string;

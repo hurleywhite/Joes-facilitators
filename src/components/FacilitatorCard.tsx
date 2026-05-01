@@ -6,13 +6,20 @@ import {
   MapPin,
   Monitor,
   Users,
-  Sparkles,
   ChevronDown,
   ChevronUp,
+  Star,
 } from "lucide-react";
 import { useState } from "react";
 
-function focusBadge(focus: string) {
+function focusBadge(focus: string | undefined) {
+  if (!focus) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full border bg-gray-50 text-gray-500 border-gray-200 italic">
+        Focus TBD
+      </span>
+    );
+  }
   const colors: Record<string, string> = {
     Facilitation: "bg-blue-100 text-blue-800 border-blue-200",
     Tech: "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -21,7 +28,12 @@ function focusBadge(focus: string) {
   const icons: Record<string, React.ReactNode> = {
     Facilitation: <Users className="w-3 h-3" />,
     Tech: <Monitor className="w-3 h-3" />,
-    Both: <Sparkles className="w-3 h-3" />,
+    Both: (
+      <span className="inline-flex items-center -space-x-0.5">
+        <Users className="w-3 h-3" />
+        <Monitor className="w-3 h-3" />
+      </span>
+    ),
   };
   return (
     <span

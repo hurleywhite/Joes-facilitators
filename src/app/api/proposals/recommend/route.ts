@@ -70,14 +70,20 @@ export async function POST(req: Request) {
       reasons.push(`In ${f.region}`);
     }
 
-    // Focus match
-    if (neededFocus && neededFocus !== "Any") {
+    // Focus match (undefined focus skipped — neutral, not penalized)
+    if (neededFocus && neededFocus !== "Any" && f.focus) {
       if (f.focus === neededFocus) {
         score += 30;
         reasons.push(`${neededFocus} focus`);
       } else if (f.focus === "Both") {
         score += 15;
       }
+    }
+
+    // Tier boost — Joe's manual quality flag
+    if (f.tier && f.tier.toLowerCase() === "yes") {
+      score += 25;
+      reasons.push("Top tier");
     }
 
     // Industry experience match

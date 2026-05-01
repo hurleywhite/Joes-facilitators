@@ -98,6 +98,19 @@ function splitLocation(location: string): { city: string; country: string } {
   return { city, country: last };
 }
 
+/**
+ * Parses Focus value. Returns undefined for empty/unrecognized so we can
+ * distinguish "not categorized yet" from a real value.
+ */
+function parseFocus(value: string): Focus | undefined {
+  if (!value) return undefined;
+  const lower = value.toLowerCase().trim();
+  if (lower === "facilitation") return "Facilitation";
+  if (lower === "tech" || lower === "technical") return "Tech";
+  if (lower === "both") return "Both";
+  return undefined;
+}
+
 function deriveAvailability(
   explicit: string,
   currentEngagement: string | null
@@ -204,10 +217,11 @@ export async function fetchFromGoogleSheet(
         ),
         email: getCol(row, ["Email", "E-mail", "E mail"]) || undefined,
         website: ensureFullUrl(getCol(row, ["Website", "Site", "URL"])) || undefined,
-        focus: (getCol(row, ["Focus"]) || "Facilitation") as Focus,
+        focus: parseFocus(getCol(row, ["Focus"])),
         experienceLevel: (getCol(row, ["Experience Level", "Experience"]) || "Medium") as ExperienceLevel,
         availability: deriveAvailability(explicitAvailability, currentEngagement),
         region: explicitRegion || deriveRegionFromLocation(displayLocation, country),
+        tier: getCol(row, ["Tier"]) || undefined,
         location: displayLocation,
         city,
         country,
