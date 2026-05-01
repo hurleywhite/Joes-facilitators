@@ -12,6 +12,30 @@ const cache = new Map<string, { lat: number; lng: number } | null>();
 
 // Static lookup for major cities — instant, no network
 const cityLookup: Record<string, { lat: number; lng: number }> = {
+  // USA — additional cities/states
+  "alexandria, va": { lat: 38.8048, lng: -77.0469 },
+  "carlsbad, ca": { lat: 33.1581, lng: -117.3506 },
+  "temecula, ca": { lat: 33.4936, lng: -117.1484 },
+  "mineapolis, mn": { lat: 44.9778, lng: -93.265 }, // typo in sheet
+  "tampa bay area": { lat: 27.9506, lng: -82.4572 },
+  "tampa, fl": { lat: 27.9506, lng: -82.4572 },
+  nyc: { lat: 40.7128, lng: -74.006 },
+  "nyc area": { lat: 40.7128, lng: -74.006 },
+  maryland: { lat: 39.0458, lng: -76.6413 },
+  // Country-only locations (point at capital/major city)
+  argentina: { lat: -34.6037, lng: -58.3816 },
+  germany: { lat: 52.52, lng: 13.405 },
+  italy: { lat: 41.9028, lng: 12.4964 },
+  kenya: { lat: -1.2921, lng: 36.8219 },
+  netherlands: { lat: 52.3676, lng: 4.9041 },
+  portugal: { lat: 38.7223, lng: -9.1393 },
+  "south africa": { lat: -26.2041, lng: 28.0473 },
+  spain: { lat: 40.4168, lng: -3.7038 },
+  sweden: { lat: 59.3293, lng: 18.0686 },
+  switzerland: { lat: 47.3769, lng: 8.5417 },
+  uk: { lat: 51.5074, lng: -0.1278 },
+  "(us)": { lat: 39.8283, lng: -98.5795 }, // geographic center
+  "(canada/eu)": { lat: 45.4215, lng: -75.6972 }, // Ottawa default
   // USA
   "san francisco": { lat: 37.7749, lng: -122.4194 },
   "san francisco bay area": { lat: 37.7749, lng: -122.4194 },
