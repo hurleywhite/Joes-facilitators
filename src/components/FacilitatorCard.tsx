@@ -77,9 +77,9 @@ export default function FacilitatorCard({ f }: { f: Facilitator }) {
           <span className="text-xs text-gray-400">{f.region}</span>
         </div>
 
-        {/* Header */}
-        <div className="flex items-start gap-4">
-          {/* Avatar */}
+        {/* Header — 2x avatar + shifted name/location/badges to the right */}
+        <div className="flex items-start gap-5">
+          {/* Avatar (2x = 28x28 = 112px) */}
           <div className="relative flex-shrink-0">
             <img
               src={
@@ -87,14 +87,14 @@ export default function FacilitatorCard({ f }: { f: Facilitator }) {
                 `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name)}&backgroundColor=6366f1,8b5cf6,a855f7&fontFamily=Arial&fontSize=40`
               }
               alt={f.name}
-              className="w-14 h-14 rounded-full object-cover border-2 border-gray-100 bg-indigo-100"
+              className="w-28 h-28 rounded-full object-cover border-2 border-gray-100 bg-indigo-100 shadow-sm"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name)}&backgroundColor=6366f1`;
               }}
             />
-            {/* Small availability dot on avatar */}
+            {/* Larger availability dot on avatar */}
             <span
-              className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white ${
+              className={`absolute bottom-1 right-1 w-5 h-5 rounded-full border-[3px] border-white shadow ${
                 f.availability === "Available"
                   ? "bg-green-500"
                   : f.availability === "On Assignment"
@@ -104,9 +104,9 @@ export default function FacilitatorCard({ f }: { f: Facilitator }) {
             />
           </div>
 
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 pt-1">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-gray-900 text-base truncate">
+              <h3 className="font-semibold text-gray-900 text-lg truncate">
                 {f.name}
               </h3>
               <a
@@ -120,11 +120,11 @@ export default function FacilitatorCard({ f }: { f: Facilitator }) {
                 <ExternalLink className="w-3 h-3" />
               </a>
             </div>
-            <div className="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
+            <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
               <MapPin className="w-3.5 h-3.5" />
-              <span>{f.location}</span>
+              <span className="truncate">{f.location}</span>
             </div>
-            <div className="flex flex-wrap gap-1.5 mt-2">
+            <div className="flex flex-wrap gap-1.5 mt-2.5">
               {focusBadge(f.focus)}
               {experienceBadge(f.experienceLevel)}
             </div>

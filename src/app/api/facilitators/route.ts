@@ -2,35 +2,58 @@ import { NextResponse } from "next/server";
 import { fetchFromGoogleSheet, toGoogleSheetCsvUrl } from "@/data/sheets";
 import { dummyFacilitators } from "@/data/dummy-facilitators";
 import { getPhotoUrl } from "@/data/photo-map";
+import { Facilitator } from "@/types/facilitator";
+import { resolveCoords } from "@/lib/geocode";
+import { generateBio } from "@/lib/bio-enrich";
 
-// Force dynamic — never cache this route at the edge
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 /**
- * For each facilitator, if they don't have a photoUrl from the spreadsheet,
- * auto-resolve one from their X/Twitter profile via unavatar.io.
+ * Enriches facilitator data:
+ *   - photoUrl: lookup from local photos via LinkedIn handle
+ *   - lat/lng: geocode from location (static lookup, fast)
+ *   - bio: template-generated from focus/experience/industries if missing
  */
-function enrichPhotos(
-  facilitators: typeof dummyFacilitators
-): typeof dummyFacilitators {
-  return facilitators.map((f) => ({
-    ...f,
-    photoUrl: f.photoUrl || getPhotoUrl(f.linkedinUrl, f.name),
-  }));
+async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
+  return Promise.all(
+    facilitators.map(async (f) => {
+      // Photo
+      const photoUrl = f.photoUrl || getPhotoUrl(f.linkedinUrl, f.name);
+
+      // Coords
+      let lat = f.lat;
+      let lng = f.lng;
+      if ((!lat || lat === 0) && f.location) {
+        const coords = await resolveCoords(f.location, false);
+        if (coords) {
+          lat = coords.lat;
+          lng = coords.lng;
+        }
+      }
+
+      // Bio
+      const bio =
+        f.bio && f.bio.length > 20
+          ? f.bio
+          : generateBio(f);
+
+      return { ...f, photoUrl, lat, lng, bio };
+    })
+  );
 }
 
 export async function GET() {
   let sheetUrl = process.env.GOOGLE_SHEET_CSV_URL;
 
-  // If a Google Sheet URL is configured, fetch from it; otherwise use dummy data
   if (sheetUrl) {
-    // Auto-convert sharing URLs to CSV export URLs
     sheetUrl = toGoogleSheetCsvUrl(sheetUrl);
 
     try {
       const facilitators = await fetchFromGoogleSheet(sheetUrl);
       if (facilitators.length > 0) {
-        return NextResponse.json(enrichPhotos(facilitators), {
+        const enriched = await enrich(facilitators);
+        return NextResponse.json(enriched, {
           headers: {
             "Cache-Control": "no-cache, no-store, must-revalidate",
           },
@@ -44,5 +67,6 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json(enrichPhotos(dummyFacilitators));
+  const enriched = await enrich(dummyFacilitators);
+  return NextResponse.json(enriched);
 }
