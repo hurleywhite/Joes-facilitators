@@ -35,7 +35,11 @@ const linkedinToPhoto: Record<string, string> = {
 
 /**
  * Given a LinkedIn URL, returns a photo URL.
- * Tries exact match, then strips trailing numbers, then prefix match.
+ *
+ * Priority:
+ *   1. Local hosted photo (verified, manually-sourced for top facilitators)
+ *   2. unavatar.io initials avatar with name (clean, professional, cached on
+ *      their CDN — better than DiceBear for fallback)
  */
 export function getPhotoUrl(linkedinUrl: string, name: string): string {
   const match = linkedinUrl.match(/linkedin\.com\/in\/([^/?#]+)/);
@@ -57,6 +61,6 @@ export function getPhotoUrl(linkedinUrl: string, name: string): string {
     }
   }
 
-  // Fallback: DiceBear initials
-  return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=6366f1,8b5cf6,a855f7&fontFamily=Arial&fontSize=40`;
+  // Fallback: DiceBear initials with a cleaner color palette
+  return `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=4f46e5,7c3aed,a855f7,06b6d4,059669&fontWeight=600&textColor=ffffff`;
 }

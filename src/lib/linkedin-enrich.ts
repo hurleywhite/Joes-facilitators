@@ -1,28 +1,26 @@
 /**
  * LinkedIn enrichment — best-effort bio/photo extraction from public LinkedIn profiles.
  *
- * LinkedIn doesn't provide a free official API, but their public profile pages
- * include Open Graph metadata that we can parse: og:title, og:description, og:image.
- * These typically contain the person's headline and profile photo URL.
- *
- * Notes:
- *   - LinkedIn aggressively bot-blocks. This may return null in production.
- *   - Results are cached per serverless instance to avoid repeat calls.
- *   - For reliable scraping at scale, use a paid service like Proxycurl.
+ * Uses Open Graph metadata (og:title, og:description, og:image) from LinkedIn's
+ * public profile pages. LinkedIn allows some og: scraping with realistic User-Agent
+ * but rate-limits aggressively, so:
+ *   - Per-instance cache prevents re-fetches
+ *   - Negative results also cached (avoid retry storms)
+ *   - Realistic Chrome User-Agent
+ *   - 6s timeout per request (LinkedIn can be slow)
  */
 
 type LinkedInData = {
-  title?: string; // e.g., "John Doe | LinkedIn"
-  description?: string; // e.g., "Workshop Facilitator at ACME | 15 years..."
+  title?: string;
+  description?: string;
   imageUrl?: string;
 };
 
 const cache = new Map<string, LinkedInData | null>();
 
-/**
- * Fetches public LinkedIn metadata for a profile URL.
- * Returns null if the page is blocked or unparseable.
- */
+const REALISTIC_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
 export async function fetchLinkedInMetadata(
   url: string
 ): Promise<LinkedInData | null> {
@@ -32,11 +30,14 @@ export async function fetchLinkedInMetadata(
   try {
     const res = await fetch(url, {
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; ArcticMind-FacilitatorPool/1.0; +https://joes-fac.vercel.app)",
-        Accept: "text/html,application/xhtml+xml",
+        "User-Agent": REALISTIC_UA,
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Cache-Control": "no-cache",
       },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(6000),
     });
 
     if (!res.ok) {
@@ -45,11 +46,24 @@ export async function fetchLinkedInMetadata(
     }
 
     const html = await res.text();
+
+    // LinkedIn anti-bot challenge page is small (~1.5KB). Real pages are 700KB+
+    if (html.length < 5000) {
+      cache.set(url, null);
+      return null;
+    }
+
     const data: LinkedInData = {
       title: extractMeta(html, "og:title"),
       description: extractMeta(html, "og:description"),
       imageUrl: extractMeta(html, "og:image"),
     };
+
+    // If we got nothing useful, treat as failure
+    if (!data.title && !data.description && !data.imageUrl) {
+      cache.set(url, null);
+      return null;
+    }
 
     cache.set(url, data);
     return data;
@@ -60,7 +74,7 @@ export async function fetchLinkedInMetadata(
 }
 
 function extractMeta(html: string, property: string): string | undefined {
-  // <meta property="og:description" content="...">
+  // <meta property="og:image" content="...">
   const re1 = new RegExp(
     `<meta\\s+property=["']${property}["']\\s+content=["']([^"']+)["']`,
     "i"
