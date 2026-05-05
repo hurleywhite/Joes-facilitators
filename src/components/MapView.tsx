@@ -77,8 +77,18 @@ export default function MapView({
       }
     });
 
-    // Add markers
+    // Add markers — skip facilitators without real coordinates so they don't
+    // pile up on Null Island (0, 0) in the Atlantic. Treats blank/NaN/zero
+    // coords as "unknown location" and just hides them from the map (they
+    // still appear in the grid view).
     facilitators.forEach((f) => {
+      if (
+        !Number.isFinite(f.lat) ||
+        !Number.isFinite(f.lng) ||
+        (f.lat === 0 && f.lng === 0)
+      ) {
+        return;
+      }
       const color = focusColor(f.focus);
       const radius = experienceSize(f.experienceLevel);
 
