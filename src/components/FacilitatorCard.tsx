@@ -50,11 +50,15 @@ function experienceBadge(level: string) {
     Medium: "bg-sky-100 text-sky-800 border-sky-200",
     Low: "bg-gray-100 text-gray-600 border-gray-200",
   };
+  // Show Joe's "Top" vocabulary on the badge while the underlying type
+  // stays as "High" for type-safety across the codebase.
+  const label =
+    level === "High" ? "Top tier" : level === "Medium" ? "Mid tier" : "Low tier";
   return (
     <span
       className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full border ${colors[level] || "bg-gray-100 text-gray-800"}`}
     >
-      {level} Exp.
+      {label}
     </span>
   );
 }

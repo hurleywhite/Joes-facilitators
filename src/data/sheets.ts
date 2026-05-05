@@ -111,6 +111,44 @@ function parseFocus(value: string): Focus | undefined {
   return undefined;
 }
 
+/**
+ * Normalizes the experience / tier label from any of:
+ *   - "Experience Level" / "Experience" columns ("High", "Medium", "Low")
+ *   - "Tier" column from Joe's master ("Top", "Medium", "Low", "Tier 1", etc.)
+ *   - Blank → "Medium" (safe default so the row still appears in cards)
+ *
+ * Joe's vocabulary uses "Top" — the app type is "High | Medium | Low" so we
+ * fold "Top" into "High" here. Without this, every Speaking Directory row
+ * fell through to the "Medium" default and the High/Medium/Low filters
+ * matched zero rows for Top tier facilitators.
+ */
+function parseExperienceLevel(raw: string): ExperienceLevel {
+  const v = (raw || "").toLowerCase().trim();
+  if (!v) return "Medium";
+  if (
+    v === "top" ||
+    v === "high" ||
+    v === "tier 1" ||
+    v === "t1" ||
+    v === "senior" ||
+    v === "expert" ||
+    v === "yes"
+  ) {
+    return "High";
+  }
+  if (
+    v === "low" ||
+    v === "tier 3" ||
+    v === "t3" ||
+    v === "junior" ||
+    v === "developing" ||
+    v === "emerging"
+  ) {
+    return "Low";
+  }
+  return "Medium";
+}
+
 function deriveAvailability(
   explicit: string,
   currentEngagement: string | null
@@ -260,7 +298,12 @@ export async function fetchFromGoogleSheet(
         email: getCol(row, ["Email", "E-mail", "E mail"]) || undefined,
         website: ensureFullUrl(getCol(row, ["Website", "Site", "URL"])) || undefined,
         focus: parseFocus(getCol(row, ["Focus"])),
-        experienceLevel: (getCol(row, ["Experience Level", "Experience"]) || "Medium") as ExperienceLevel,
+        experienceLevel: parseExperienceLevel(
+          // Pull from Experience Level / Experience columns first; fall back
+          // to Tier (Joe's "Top/Medium/Low" vocabulary) so the filter works
+          // off the value people actually maintain.
+          getCol(row, ["Experience Level", "Experience", "Tier"])
+        ),
         availability: deriveAvailability(explicitAvailability, currentEngagement),
         region: explicitRegion || deriveRegionFromLocation(displayLocation, country),
         tier: getCol(row, ["Tier"]) || undefined,

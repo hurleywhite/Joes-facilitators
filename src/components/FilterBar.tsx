@@ -140,8 +140,8 @@ export default function FilterBar({
               : "border-gray-200"
           }`}
         >
-          <option value="All">All Experience</option>
-          <option value="High">High</option>
+          <option value="All">All Tiers</option>
+          <option value="High">Top</option>
           <option value="Medium">Medium</option>
           <option value="Low">Low</option>
         </select>
