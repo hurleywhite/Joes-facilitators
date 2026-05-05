@@ -5,7 +5,7 @@ import { Facilitator } from "@/types/facilitator";
 import FacilitatorCard from "@/components/FacilitatorCard";
 import FilterBar from "@/components/FilterBar";
 import StatsBar from "@/components/StatsBar";
-import { RefreshCw, FileText } from "lucide-react";
+import { RefreshCw, Briefcase } from "lucide-react";
 import Link from "next/link";
 
 const MapView = lazy(() => import("@/components/MapView"));
@@ -75,11 +75,11 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-2">
             <Link
-              href="/proposals"
+              href="/engagements"
               className="flex items-center gap-2 px-3 py-2 text-sm bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors"
             >
-              <FileText className="w-4 h-4" />
-              Proposals
+              <Briefcase className="w-4 h-4" />
+              Engagements
             </Link>
             <button
               onClick={fetchData}
