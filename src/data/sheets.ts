@@ -116,12 +116,54 @@ function deriveAvailability(
   currentEngagement: string | null
 ): Availability {
   if (explicit) {
-    const lower = explicit.toLowerCase();
-    if (lower === "available") return "Available";
-    if (lower.includes("assignment") || lower.includes("busy")) return "On Assignment";
-    if (lower === "unavailable") return "Unavailable";
+    // Strip markdown chars, emoji, and whitespace so values like
+    // "🔴 Unavailable", "**Not Available**", "N/A " all normalize cleanly.
+    const lower = explicit
+      .toLowerCase()
+      .replace(/[*_`~#>\[\]()🟢🔴🟡⚪🟠❌✅🚫]/gu, "")
+      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "")
+      .trim();
+
+    // Check UNAVAILABLE patterns FIRST — "not available" contains "available",
+    // so the order matters. Anything that signals "no" should win.
+    if (
+      lower === "unavailable" ||
+      lower === "not available" ||
+      lower === "no" ||
+      lower === "n/a" ||
+      lower === "na" ||
+      lower === "off" ||
+      lower === "out" ||
+      lower === "inactive" ||
+      /\b(unavailable|not\s+available|on\s+leave|on\s+hold|paused|hidden|away|retired|withdrawn)\b/.test(lower)
+    ) {
+      return "Unavailable";
+    }
+
+    // ON ASSIGNMENT patterns
+    if (/\b(assignment|booked|busy|engaged|in\s+progress|on\s+assignment)\b/.test(lower)) {
+      return "On Assignment";
+    }
+
+    // AVAILABLE patterns (after unavailable so "not available" doesn't slip through here)
+    if (
+      lower === "available" ||
+      lower === "yes" ||
+      lower === "open" ||
+      lower === "active" ||
+      lower === "free" ||
+      lower === "ok" ||
+      /\b(available|active|open\s+to|ready)\b/.test(lower)
+    ) {
+      return "Available";
+    }
   }
+
+  // No explicit value — infer from current engagement.
   if (currentEngagement) return "On Assignment";
+
+  // Truly blank → default to Available (safer to surface than to hide; the
+  // operator can mark someone Unavailable explicitly when they should be hidden).
   return "Available";
 }
 

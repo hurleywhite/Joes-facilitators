@@ -9,7 +9,6 @@ import {
   MapPin,
   RefreshCw,
   Users,
-  ExternalLink,
   Inbox,
 } from "lucide-react";
 import { EngagementRecord, EngagementRecordStatus } from "@/types/facilitator";
@@ -18,29 +17,25 @@ export default function EngagementsPage() {
   const [engagements, setEngagements] = useState<EngagementRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notConfigured, setNotConfigured] = useState(false);
+  const [source, setSource] = useState<string>("");
 
   const fetchData = async () => {
     setLoading(true);
     setError(null);
-    setNotConfigured(false);
     try {
       const res = await fetch(`/api/engagements?t=${Date.now()}`);
-      if (res.headers.get("X-Engagements-Status") === "not-configured") {
-        setNotConfigured(true);
-        setEngagements([]);
-      } else if (!res.ok) {
-        throw new Error("Failed to load engagements");
-      } else {
-        const data = await res.json();
-        setEngagements(Array.isArray(data) ? data : []);
-      }
+      setSource(res.headers.get("X-Engagements-Source") || "");
+      if (!res.ok) throw new Error("Failed to load engagements");
+      const data = await res.json();
+      setEngagements(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
       setLoading(false);
     }
   };
+
+  const usingSeed = source.startsWith("seed");
 
   useEffect(() => {
     fetchData();
@@ -90,29 +85,14 @@ export default function EngagementsPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Setup banner */}
-        {notConfigured && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm text-amber-900">
-            <div className="font-semibold mb-1">Engagements sheet not configured</div>
-            <p className="mb-2">
-              Set the <code className="bg-amber-100 px-1 rounded">GOOGLE_ENGAGEMENTS_CSV_URL</code>{" "}
-              environment variable in Vercel to a Google Sheet share URL that
-              points at the Engagements tab (the URL should contain{" "}
-              <code className="bg-amber-100 px-1 rounded">?gid=&lt;tab-id&gt;</code>).
-            </p>
-            <p>
-              Required columns:{" "}
-              <code className="bg-amber-100 px-1 rounded">Engagement</code>,{" "}
-              <code className="bg-amber-100 px-1 rounded">Client</code>,{" "}
-              <code className="bg-amber-100 px-1 rounded">Status</code>,{" "}
-              <code className="bg-amber-100 px-1 rounded">Start Date</code>,{" "}
-              <code className="bg-amber-100 px-1 rounded">Facilitators</code>.
-              Optional: <code className="bg-amber-100 px-1 rounded">End Date</code>,{" "}
-              <code className="bg-amber-100 px-1 rounded">Location</code>,{" "}
-              <code className="bg-amber-100 px-1 rounded">Type</code>,{" "}
-              <code className="bg-amber-100 px-1 rounded">Value</code>,{" "}
-              <code className="bg-amber-100 px-1 rounded">Notes</code>.
-            </p>
+        {/* Seed-data banner — soft, informational */}
+        {usingSeed && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-900 flex items-center justify-between">
+            <span>
+              Showing built-in seed data. To use a live Google Sheet, set{" "}
+              <code className="bg-indigo-100 px-1 rounded">GOOGLE_ENGAGEMENTS_CSV_URL</code>{" "}
+              in Vercel.
+            </span>
           </div>
         )}
 
@@ -122,7 +102,7 @@ export default function EngagementsPage() {
           </div>
         )}
 
-        {loading && !notConfigured && (
+        {loading && (
           <div className="flex items-center justify-center py-20">
             <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
           </div>
