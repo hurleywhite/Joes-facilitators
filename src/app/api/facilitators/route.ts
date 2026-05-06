@@ -6,6 +6,7 @@ import { Facilitator } from "@/types/facilitator";
 import { resolveCoords } from "@/lib/geocode";
 import { generateBio } from "@/lib/bio-enrich";
 import { fetchLinkedInMetadata } from "@/lib/linkedin-enrich";
+import { mergeIndustries } from "@/lib/industry-parser";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -52,7 +53,14 @@ async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
         }
       }
 
-      return { ...f, photoUrl, lat, lng, bio };
+      // Re-derive industries against the FINAL bio. fetchFromGoogleSheet
+      // already does this from the raw sheet bio, but if we end up using a
+      // LinkedIn-derived bio (or the dummy data path which doesn't run the
+      // sheet parser at all), the enriched bio may surface industries that
+      // weren't in the sheet column.
+      const industryExperience = mergeIndustries(f.industryExperience || [], bio);
+
+      return { ...f, photoUrl, lat, lng, bio, industryExperience };
     })
   );
 }

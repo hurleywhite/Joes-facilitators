@@ -5,7 +5,7 @@ import { Facilitator } from "@/types/facilitator";
 import FacilitatorCard from "@/components/FacilitatorCard";
 import FilterBar from "@/components/FilterBar";
 import StatsBar from "@/components/StatsBar";
-import { RefreshCw, Briefcase } from "lucide-react";
+import { RefreshCw, Briefcase, MessageSquare } from "lucide-react";
 import Link from "next/link";
 
 const MapView = lazy(() => import("@/components/MapView"));
@@ -20,6 +20,7 @@ export default function Home() {
   const [expFilter, setExpFilter] = useState("All");
   const [availFilter, setAvailFilter] = useState("All");
   const [regionFilter, setRegionFilter] = useState("All");
+  const [industryFilter, setIndustryFilter] = useState("All");
   const [view, setView] = useState<"cards" | "map">("cards");
 
   const fetchData = useCallback(async () => {
@@ -41,6 +42,20 @@ export default function Home() {
     fetchData();
   }, [fetchData]);
 
+  // Build the industry option list from the loaded data — keeps the dropdown
+  // in sync with whatever bios + sheet columns produced after parsing.
+  const industryOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const f of facilitators) {
+      for (const ind of f.industryExperience || []) {
+        counts.set(ind, (counts.get(ind) || 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([name]) => name);
+  }, [facilitators]);
+
   const filtered = useMemo(() => {
     return facilitators.filter((f) => {
       const matchesSearch =
@@ -48,14 +63,29 @@ export default function Home() {
         f.name.toLowerCase().includes(search.toLowerCase()) ||
         f.location.toLowerCase().includes(search.toLowerCase()) ||
         f.bio.toLowerCase().includes(search.toLowerCase()) ||
-        f.country.toLowerCase().includes(search.toLowerCase());
+        f.country.toLowerCase().includes(search.toLowerCase()) ||
+        (f.industryExperience || []).some((i) =>
+          i.toLowerCase().includes(search.toLowerCase())
+        );
       const matchesFocus = focusFilter === "All" || f.focus === focusFilter;
       const matchesExp = expFilter === "All" || f.experienceLevel === expFilter;
       const matchesAvail = availFilter === "All" || f.availability === availFilter;
       const matchesRegion = regionFilter === "All" || f.region === regionFilter;
-      return matchesSearch && matchesFocus && matchesExp && matchesAvail && matchesRegion;
+      const matchesIndustry =
+        industryFilter === "All" ||
+        (f.industryExperience || []).some(
+          (i) => i.toLowerCase() === industryFilter.toLowerCase()
+        );
+      return (
+        matchesSearch &&
+        matchesFocus &&
+        matchesExp &&
+        matchesAvail &&
+        matchesRegion &&
+        matchesIndustry
+      );
     });
-  }, [facilitators, search, focusFilter, expFilter, availFilter, regionFilter]);
+  }, [facilitators, search, focusFilter, expFilter, availFilter, regionFilter, industryFilter]);
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -74,6 +104,13 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              href="/chat"
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Ask
+            </Link>
             <Link
               href="/engagements"
               className="flex items-center gap-2 px-3 py-2 text-sm bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors"
@@ -115,6 +152,9 @@ export default function Home() {
           onAvailChange={setAvailFilter}
           regionFilter={regionFilter}
           onRegionChange={setRegionFilter}
+          industryFilter={industryFilter}
+          onIndustryChange={setIndustryFilter}
+          industryOptions={industryOptions}
           view={view}
           onViewChange={setView}
           totalCount={facilitators.length}

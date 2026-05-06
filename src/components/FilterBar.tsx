@@ -13,6 +13,9 @@ interface FilterBarProps {
   onAvailChange: (v: string) => void;
   regionFilter: string;
   onRegionChange: (v: string) => void;
+  industryFilter: string;
+  onIndustryChange: (v: string) => void;
+  industryOptions: string[];
   view: "cards" | "map";
   onViewChange: (v: "cards" | "map") => void;
   totalCount: number;
@@ -30,6 +33,9 @@ export default function FilterBar({
   onAvailChange,
   regionFilter,
   onRegionChange,
+  industryFilter,
+  onIndustryChange,
+  industryOptions,
   view,
   onViewChange,
   totalCount,
@@ -145,6 +151,26 @@ export default function FilterBar({
           <option value="Medium">Medium</option>
           <option value="Low">Low</option>
         </select>
+
+        {/* Industry filter — only render when there are industries to pick. */}
+        {industryOptions.length > 0 && (
+          <select
+            value={industryFilter}
+            onChange={(e) => onIndustryChange(e.target.value)}
+            className={`border rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
+              industryFilter !== "All"
+                ? "border-rose-400 text-rose-700 bg-rose-50"
+                : "border-gray-200"
+            }`}
+          >
+            <option value="All">All Industries</option>
+            {industryOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Results count */}

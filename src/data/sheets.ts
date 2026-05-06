@@ -7,6 +7,7 @@ import {
   Availability,
   Region,
 } from "@/types/facilitator";
+import { mergeIndustries } from "@/lib/industry-parser";
 
 /**
  * Country/keyword → Region mapping for auto-deriving region.
@@ -288,6 +289,11 @@ export async function fetchFromGoogleSheet(
       const explicitAvailability = getCol(row, ["Availability", "Status"]);
       const explicitRegion = getCol(row, ["Region"]) as Region;
 
+      const bioText = getCol(row, ["Bio", "Description", "About"]);
+      const explicitIndustries = splitList(
+        getCol(row, ["Industry Experience", "Industries", "Industry"])
+      );
+
       return {
         id: String(i + 1),
         name: getCol(row, ["Name"]),
@@ -312,11 +318,12 @@ export async function fetchFromGoogleSheet(
         country,
         lat: parseFloat(getCol(row, ["Lat", "Latitude"]) || "0"),
         lng: parseFloat(getCol(row, ["Lng", "Lon", "Long", "Longitude"]) || "0"),
-        bio: getCol(row, ["Bio", "Description", "About"]),
+        bio: bioText,
         languages: splitList(getCol(row, ["Languages", "Language"])),
-        industryExperience: splitList(
-          getCol(row, ["Industry Experience", "Industries", "Industry"])
-        ),
+        // Merge sheet-provided industries with bio-parsed ones so people who
+        // mention "fintech" / "Pharma" / "Cloud" in their Bio still surface
+        // for industry filtering even before Joe hand-tags them.
+        industryExperience: mergeIndustries(explicitIndustries, bioText),
         employmentStatus:
           getCol(row, ["Employment status", "Employment Status", "Employment"]) ||
           undefined,
