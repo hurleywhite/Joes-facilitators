@@ -327,6 +327,8 @@ export async function fetchFromGoogleSheet(
         demoVideoUrl:
           ensureFullUrl(
             getCol(row, [
+              "Demo Recording",
+              "Recording",
               "Demo Video",
               "Demo Video URL",
               "Video",
