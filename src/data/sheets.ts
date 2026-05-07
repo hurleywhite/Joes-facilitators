@@ -293,6 +293,16 @@ export async function fetchFromGoogleSheet(
       const explicitIndustries = splitList(
         getCol(row, ["Industry Experience", "Industries", "Industry"])
       );
+      // "Additional Skills" sits next to industries in the live sheet
+      // (currently empty). Fold any values into the bio so they are
+      // searchable + visible without inflating the Industry filter
+      // dropdown with non-industry tags.
+      const additionalSkills = splitList(
+        getCol(row, ["Additional Skills", "Skills"])
+      );
+      const enrichedBio = additionalSkills.length
+        ? `${bioText}\n\nAdditional skills: ${additionalSkills.join(", ")}`.trim()
+        : bioText;
 
       return {
         id: String(i + 1),
@@ -318,12 +328,12 @@ export async function fetchFromGoogleSheet(
         country,
         lat: parseFloat(getCol(row, ["Lat", "Latitude"]) || "0"),
         lng: parseFloat(getCol(row, ["Lng", "Lon", "Long", "Longitude"]) || "0"),
-        bio: bioText,
+        bio: enrichedBio,
         languages: splitList(getCol(row, ["Languages", "Language"])),
         // Merge sheet-provided industries with bio-parsed ones so people who
         // mention "fintech" / "Pharma" / "Cloud" in their Bio still surface
         // for industry filtering even before Joe hand-tags them.
-        industryExperience: mergeIndustries(explicitIndustries, bioText),
+        industryExperience: mergeIndustries(explicitIndustries, enrichedBio),
         demoVideoUrl:
           ensureFullUrl(
             getCol(row, [
