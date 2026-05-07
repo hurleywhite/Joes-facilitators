@@ -7,6 +7,7 @@ import { resolveCoords } from "@/lib/geocode";
 import { generateBio } from "@/lib/bio-enrich";
 import { fetchLinkedInMetadata } from "@/lib/linkedin-enrich";
 import { mergeIndustries } from "@/lib/industry-parser";
+import { regionFromCoords } from "@/lib/region-from-coords";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -60,7 +61,14 @@ async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
       // weren't in the sheet column.
       const industryExperience = mergeIndustries(f.industryExperience || [], bio);
 
-      return { ...f, photoUrl, lat, lng, bio, industryExperience };
+      // Region: prefer coords-derived over the country-string derivation
+      // baked into sheets.ts. The country derivation drifts when the
+      // location is missing/abbreviated; the lat/lng is what the map
+      // actually shows, so we should match it.
+      const coordRegion = regionFromCoords(lat, lng);
+      const region = coordRegion || f.region;
+
+      return { ...f, photoUrl, lat, lng, bio, industryExperience, region };
     })
   );
 }

@@ -11,23 +11,35 @@ import {
   Users,
   Inbox,
 } from "lucide-react";
-import { EngagementRecord, EngagementRecordStatus } from "@/types/facilitator";
+import { EngagementRecord, EngagementRecordStatus, Facilitator } from "@/types/facilitator";
+import FacilitatorDrawer from "@/components/FacilitatorDrawer";
 
 export default function EngagementsPage() {
   const [engagements, setEngagements] = useState<EngagementRecord[]>([]);
+  const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<string>("");
+  const [selectedFacilitator, setSelectedFacilitator] =
+    useState<Facilitator | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/engagements?t=${Date.now()}`);
-      setSource(res.headers.get("X-Engagements-Source") || "");
-      if (!res.ok) throw new Error("Failed to load engagements");
-      const data = await res.json();
-      setEngagements(Array.isArray(data) ? data : []);
+      const [engRes, facRes] = await Promise.all([
+        fetch(`/api/engagements?t=${Date.now()}`),
+        fetch(`/api/facilitators?t=${Date.now()}`),
+      ]);
+      setSource(engRes.headers.get("X-Engagements-Source") || "");
+      if (!engRes.ok) throw new Error("Failed to load engagements");
+      const engData = await engRes.json();
+      setEngagements(Array.isArray(engData) ? engData : []);
+
+      if (facRes.ok) {
+        const facData = await facRes.json();
+        setFacilitators(Array.isArray(facData) ? facData : []);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -37,8 +49,36 @@ export default function EngagementsPage() {
 
   const usingSeed = source.startsWith("seed");
 
+  /**
+   * Build a name → facilitator lookup so chips on engagement cards can
+   * resolve to a full profile. Lowercased for forgiving matching.
+   */
+  const facilitatorsByName = useMemo(() => {
+    const map = new Map<string, Facilitator>();
+    for (const f of facilitators) {
+      map.set(f.name.toLowerCase().trim(), f);
+    }
+    return map;
+  }, [facilitators]);
+
   useEffect(() => {
     fetchData();
+  }, []);
+
+  // Auto-refresh while visible — same pattern as the home page.
+  useEffect(() => {
+    const POLL_MS = 60_000;
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") fetchData();
+    }, POLL_MS);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") fetchData();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   const grouped = useMemo(() => {
@@ -144,6 +184,8 @@ export default function EngagementsPage() {
                 accent="green"
                 items={grouped.Active}
                 emptyMessage="No active engagements."
+                facilitatorsByName={facilitatorsByName}
+                onPickFacilitator={setSelectedFacilitator}
               />
               <Section
                 title="Upcoming"
@@ -151,6 +193,8 @@ export default function EngagementsPage() {
                 accent="indigo"
                 items={grouped.Upcoming}
                 emptyMessage="No upcoming engagements."
+                facilitatorsByName={facilitatorsByName}
+                onPickFacilitator={setSelectedFacilitator}
               />
             </div>
 
@@ -162,6 +206,8 @@ export default function EngagementsPage() {
                 accent="amber"
                 items={grouped["On Hold"]}
                 emptyMessage=""
+                facilitatorsByName={facilitatorsByName}
+                onPickFacilitator={setSelectedFacilitator}
               />
             )}
 
@@ -173,11 +219,18 @@ export default function EngagementsPage() {
                 accent="gray"
                 items={grouped.Completed}
                 emptyMessage=""
+                facilitatorsByName={facilitatorsByName}
+                onPickFacilitator={setSelectedFacilitator}
               />
             )}
           </>
         )}
       </div>
+
+      <FacilitatorDrawer
+        facilitator={selectedFacilitator}
+        onClose={() => setSelectedFacilitator(null)}
+      />
     </main>
   );
 }
@@ -190,12 +243,16 @@ function Section({
   accent,
   items,
   emptyMessage,
+  facilitatorsByName,
+  onPickFacilitator,
 }: {
   title: string;
   subtitle: string;
   accent: "green" | "indigo" | "amber" | "gray";
   items: EngagementRecord[];
   emptyMessage: string;
+  facilitatorsByName: Map<string, Facilitator>;
+  onPickFacilitator: (f: Facilitator) => void;
 }) {
   const accentClasses: Record<string, string> = {
     green: "border-l-green-500 bg-green-50/40",
@@ -224,7 +281,12 @@ function Section({
       ) : (
         <div className="space-y-3">
           {items.map((e) => (
-            <EngagementCard key={e.id} e={e} />
+            <EngagementCard
+              key={e.id}
+              e={e}
+              facilitatorsByName={facilitatorsByName}
+              onPickFacilitator={onPickFacilitator}
+            />
           ))}
         </div>
       )}
@@ -232,8 +294,22 @@ function Section({
   );
 }
 
-function EngagementCard({ e }: { e: EngagementRecord }) {
+function EngagementCard({
+  e,
+  facilitatorsByName,
+  onPickFacilitator,
+}: {
+  e: EngagementRecord;
+  facilitatorsByName: Map<string, Facilitator>;
+  onPickFacilitator: (f: Facilitator) => void;
+}) {
   const dateRange = formatDateRange(e.startDate, e.endDate);
+
+  // Compose a "sticky" engagement description so the engagement is
+  // identifiable from the chip alone — e.g. "Bahrain · Tamkeen" reads as a
+  // single sticky label even when the engagement title is just the
+  // workshop name.
+  const stickyContext = [e.location, e.client].filter(Boolean).join(" · ");
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
@@ -242,7 +318,14 @@ function EngagementCard({ e }: { e: EngagementRecord }) {
           <h3 className="font-semibold text-gray-900 text-sm truncate">
             {e.name}
           </h3>
-          <div className="text-sm text-gray-600 mt-0.5">{e.client}</div>
+          {stickyContext && (
+            <div className="text-xs font-medium text-indigo-700 mt-0.5">
+              {stickyContext}
+            </div>
+          )}
+          {e.client && stickyContext !== e.client && (
+            <div className="text-xs text-gray-500 mt-0.5">{e.client}</div>
+          )}
         </div>
         <StatusBadge status={e.status} />
       </div>
@@ -272,14 +355,31 @@ function EngagementCard({ e }: { e: EngagementRecord }) {
         <div className="mt-2 flex items-start gap-1.5 text-xs">
           <Users className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
           <div className="flex flex-wrap gap-1">
-            {e.facilitators.map((f, i) => (
-              <span
-                key={i}
-                className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded font-medium"
-              >
-                {f}
-              </span>
-            ))}
+            {e.facilitators.map((name, i) => {
+              const match = facilitatorsByName.get(name.toLowerCase().trim());
+              if (match) {
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => onPickFacilitator(match)}
+                    className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded font-medium hover:bg-indigo-100 hover:text-indigo-900 transition-colors cursor-pointer"
+                    title={`View ${name}'s profile`}
+                  >
+                    {name}
+                  </button>
+                );
+              }
+              return (
+                <span
+                  key={i}
+                  className="px-1.5 py-0.5 bg-gray-50 text-gray-600 border border-dashed border-gray-300 rounded font-medium"
+                  title="Not in the facilitator pool"
+                >
+                  {name}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
