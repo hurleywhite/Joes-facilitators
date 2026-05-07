@@ -10,6 +10,7 @@ import {
   MessageSquare,
   ExternalLink,
   MapPin,
+  PlayCircle,
 } from "lucide-react";
 import { Facilitator } from "@/types/facilitator";
 
@@ -283,11 +284,28 @@ function ResultCard({ match }: { match: ChatMatch }) {
                 <ExternalLink className="w-3 h-3" />
               </a>
             )}
+            {f.demoVideoUrl && (
+              <a
+                href={f.demoVideoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-red-600 hover:text-red-800 flex-shrink-0 inline-flex items-center"
+                title="Watch demo video"
+              >
+                <PlayCircle className="w-4 h-4" />
+              </a>
+            )}
           </div>
           {f.location && (
             <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
               <MapPin className="w-3 h-3" />
               {f.location}
+            </div>
+          )}
+          {(f.pastCompanies?.length || 0) > 0 && (
+            <div className="text-[11px] text-gray-500 mt-0.5 truncate">
+              <span className="text-gray-400">Past:</span>{" "}
+              {f.pastCompanies!.slice(0, 4).join(" · ")}
             </div>
           )}
           <div className="flex flex-wrap gap-1 mt-1.5">

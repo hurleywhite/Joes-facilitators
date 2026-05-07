@@ -60,6 +60,21 @@ export interface Facilitator {
   bio: string;
   languages: string[];
   industryExperience: string[];
+  /**
+   * Direct link to a demo video showcasing the facilitator (Loom, YouTube,
+   * Vimeo, Drive, etc.). Optional — only shown on the card when present.
+   */
+  demoVideoUrl?: string;
+  /**
+   * Past companies the facilitator has worked at (e.g. "AWS", "Pfizer").
+   * Free-form list, parsed from semicolon/comma-separated cells.
+   */
+  pastCompanies?: string[];
+  /**
+   * Past roles / titles (e.g. "Head of AI Strategy", "Chief AI Officer").
+   * Same parsing rules as pastCompanies.
+   */
+  pastRoles?: string[];
   employmentStatus?: string;
   notes?: string;
   engagements: Engagement[];

@@ -324,6 +324,35 @@ export async function fetchFromGoogleSheet(
         // mention "fintech" / "Pharma" / "Cloud" in their Bio still surface
         // for industry filtering even before Joe hand-tags them.
         industryExperience: mergeIndustries(explicitIndustries, bioText),
+        demoVideoUrl:
+          ensureFullUrl(
+            getCol(row, [
+              "Demo Video",
+              "Demo Video URL",
+              "Video",
+              "Video URL",
+              "Demo",
+              "Loom",
+            ])
+          ) || undefined,
+        pastCompanies: splitList(
+          getCol(row, [
+            "Past Companies",
+            "Companies",
+            "Past Employers",
+            "Employers",
+            "Worked At",
+          ])
+        ),
+        pastRoles: splitList(
+          getCol(row, [
+            "Past Roles",
+            "Roles",
+            "Titles",
+            "Past Titles",
+            "Previous Roles",
+          ])
+        ),
         employmentStatus:
           getCol(row, ["Employment status", "Employment Status", "Employment"]) ||
           undefined,

@@ -111,6 +111,8 @@ async function answerWithClaude(
     availability: f.availability,
     languages: f.languages,
     industries: f.industryExperience,
+    pastCompanies: f.pastCompanies || [],
+    pastRoles: f.pastRoles || [],
     bio: f.bio,
   }));
 
@@ -307,13 +309,17 @@ function answerWithHeuristic(
       reasons.push(`in ${f.region}`);
     }
 
-    // Token matching against location, languages, industries, bio
+    // Token matching against location, languages, industries, past
+    // companies/roles, and bio. The past companies/roles list is what
+    // catches "ex-AWS" or "former CMO" style queries.
     const haystack = [
       f.location,
       f.country,
       f.city,
       ...(f.languages || []),
       ...(f.industryExperience || []),
+      ...(f.pastCompanies || []),
+      ...(f.pastRoles || []),
       f.bio,
     ]
       .join(" ")

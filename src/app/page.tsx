@@ -42,6 +42,28 @@ export default function Home() {
     fetchData();
   }, [fetchData]);
 
+  /**
+   * Auto-refresh from the Google Sheet so edits show up without a manual click.
+   * Polls every 60 seconds while the tab is visible (cheap, since the API is
+   * already `cache: no-store` and the sheet fetch is fast), and fires
+   * immediately whenever the tab regains focus — i.e. you alt-tab from the
+   * sheet back to the app and it's already current.
+   */
+  useEffect(() => {
+    const POLL_MS = 60_000;
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") fetchData();
+    }, POLL_MS);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") fetchData();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [fetchData]);
+
   // Build the industry option list from the loaded data — keeps the dropdown
   // in sync with whatever bios + sheet columns produced after parsing.
   const industryOptions = useMemo(() => {
@@ -58,15 +80,16 @@ export default function Home() {
 
   const filtered = useMemo(() => {
     return facilitators.filter((f) => {
+      const q = search.toLowerCase();
       const matchesSearch =
         !search ||
-        f.name.toLowerCase().includes(search.toLowerCase()) ||
-        f.location.toLowerCase().includes(search.toLowerCase()) ||
-        f.bio.toLowerCase().includes(search.toLowerCase()) ||
-        f.country.toLowerCase().includes(search.toLowerCase()) ||
-        (f.industryExperience || []).some((i) =>
-          i.toLowerCase().includes(search.toLowerCase())
-        );
+        f.name.toLowerCase().includes(q) ||
+        f.location.toLowerCase().includes(q) ||
+        f.bio.toLowerCase().includes(q) ||
+        f.country.toLowerCase().includes(q) ||
+        (f.industryExperience || []).some((i) => i.toLowerCase().includes(q)) ||
+        (f.pastCompanies || []).some((c) => c.toLowerCase().includes(q)) ||
+        (f.pastRoles || []).some((r) => r.toLowerCase().includes(q));
       const matchesFocus = focusFilter === "All" || f.focus === focusFilter;
       const matchesExp = expFilter === "All" || f.experienceLevel === expFilter;
       const matchesAvail = availFilter === "All" || f.availability === availFilter;
