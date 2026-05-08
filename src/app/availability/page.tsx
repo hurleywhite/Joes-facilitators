@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2, Check, AlertCircle, Plus, X } from "lucide-react";
 
 /**
@@ -23,7 +23,11 @@ export default function AvailabilityPage() {
   const [lastName, setLastName] = useState("");
   const [mode, setMode] = useState<Mode>("rest_of_year");
   const [year, setYear] = useState<number>(CURRENT_YEAR);
-  const [quarter, setQuarter] = useState<number>(currentQuarter());
+  // Multi-select quarters. Past quarters in the current year are hidden,
+  // so the initial selection picks the next quarter that hasn't ended.
+  const [quarters, setQuarters] = useState<Set<number>>(
+    () => new Set([currentOrNextQuarter()])
+  );
   const [blockedRanges, setBlockedRanges] = useState<
     Array<{ start: string; end: string }>
   >([{ start: "", end: "" }]);
@@ -32,6 +36,21 @@ export default function AvailabilityPage() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // When the year changes, drop any selected quarters that are no longer
+  // selectable (e.g. user picked Q3 in current year, then switched to a
+  // future year — selection stays valid; vice versa, if someone had
+  // bizarrely selected a past quarter and switched to current year, it
+  // gets pruned). If the selection ends up empty, seed it.
+  useEffect(() => {
+    setQuarters((prev) => {
+      const next = new Set(
+        Array.from(prev).filter((q) => isQuarterSelectable(year, q))
+      );
+      if (next.size === 0) next.add(currentOrNextQuarter());
+      return next;
+    });
+  }, [year]);
 
   const submit = async () => {
     if (!firstName.trim() || !lastName.trim()) {
@@ -45,6 +64,10 @@ export default function AvailabilityPage() {
         return;
       }
     }
+    if (mode === "quarter" && quarters.size === 0) {
+      setError("Pick at least one quarter.");
+      return;
+    }
 
     setError(null);
     setSubmitting(true);
@@ -57,7 +80,13 @@ export default function AvailabilityPage() {
           lastName: lastName.trim(),
           mode,
           year,
-          quarter: mode === "quarter" ? quarter : undefined,
+          // Multi-select — send sorted array. The submit API and Apps
+          // Script both accept either `quarters: number[]` or the legacy
+          // single `quarter` field.
+          quarters:
+            mode === "quarter"
+              ? Array.from(quarters).sort((a, b) => a - b)
+              : undefined,
           blockedRanges:
             mode === "blocked"
               ? blockedRanges
@@ -125,8 +154,8 @@ export default function AvailabilityPage() {
           </h1>
           <p className="text-sm text-gray-600 mt-2 leading-relaxed">
             Let the ArcticMind team know when you&apos;re open to facilitate
-            engagements. We&apos;ll match you with deals that fit. You can
-            update this any time — your latest submission overwrites the
+            engagements. We&apos;ll match you with the right engagements. You
+            can update this any time — your latest submission overwrites the
             previous one.
           </p>
         </header>
@@ -153,20 +182,30 @@ export default function AvailabilityPage() {
           </Field>
         </div>
 
-        {/* Mode */}
+        {/* Mode — labels adapt to the picked year. For a future year
+            "rest of the year" doesn't make sense (the whole year is
+            ahead) so it switches to "entire year". */}
         <Field label="When are you available?" required>
           <div className="space-y-2">
             <RadioRow
               checked={mode === "rest_of_year"}
               onChange={() => setMode("rest_of_year")}
-              title="Available for the rest of the year"
-              subtitle="Open for engagements through Dec 31"
+              title={
+                year > CURRENT_YEAR
+                  ? `Available for the entire year (${year})`
+                  : "Available for the rest of the year"
+              }
+              subtitle={
+                year > CURRENT_YEAR
+                  ? `Open for engagements Jan 1 – Dec 31, ${year}`
+                  : "Open for engagements through Dec 31"
+              }
             />
             <RadioRow
               checked={mode === "quarter"}
               onChange={() => setMode("quarter")}
-              title="Available for a specific quarter"
-              subtitle="Pick the quarter below"
+              title="Available for specific quarter(s)"
+              subtitle="Pick one or more quarters below"
             />
             <RadioRow
               checked={mode === "blocked"}
@@ -189,27 +228,46 @@ export default function AvailabilityPage() {
           </select>
         </Field>
 
-        {/* Quarter — conditional */}
+        {/* Quarter(s) — multi-select. Past quarters of the current
+            year are hidden so a facilitator filling this out in May
+            doesn't see Q1 as an option. Future years show all four. */}
         {mode === "quarter" && (
-          <Field label="Quarter" required>
+          <Field label="Quarters" required>
             <div className="flex gap-2">
-              {[1, 2, 3, 4].map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  onClick={() => setQuarter(q)}
-                  className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                    quarter === q
-                      ? "bg-indigo-600 text-white border-indigo-600"
-                      : "bg-white text-gray-700 border-gray-200 hover:border-indigo-300"
-                  }`}
-                >
-                  Q{q}
-                </button>
-              ))}
+              {[1, 2, 3, 4]
+                .filter((q) => isQuarterSelectable(year, q))
+                .map((q) => {
+                  const selected = quarters.has(q);
+                  return (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() =>
+                        setQuarters((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(q)) next.delete(q);
+                          else next.add(q);
+                          return next;
+                        })
+                      }
+                      className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                        selected
+                          ? "bg-indigo-600 text-white border-indigo-600"
+                          : "bg-white text-gray-700 border-gray-200 hover:border-indigo-300"
+                      }`}
+                    >
+                      Q{q}
+                    </button>
+                  );
+                })}
             </div>
             <p className="text-xs text-gray-400 mt-1.5">
-              {quarterLabel(year, quarter)}
+              {quarters.size > 0
+                ? Array.from(quarters)
+                    .sort((a, b) => a - b)
+                    .map((q) => quarterLabel(year, q))
+                    .join(" · ")
+                : "Pick one or more quarters"}
             </p>
           </Field>
         )}
@@ -444,6 +502,47 @@ function RadioRow({
 
 function currentQuarter(): number {
   return Math.floor(new Date().getMonth() / 3) + 1;
+}
+
+/**
+ * Pick a sane default quarter. If we're still inside the current
+ * quarter, default to it. Otherwise (we're past Mar 31 / Jun 30 / etc.)
+ * default to the next one. If we're already in Q4, default to Q4 (the
+ * year picker will fall back to current year, and Q4 is the only
+ * remaining option).
+ */
+function currentOrNextQuarter(): number {
+  const today = new Date();
+  const month = today.getMonth(); // 0..11
+  const day = today.getDate();
+  // Quarter ends: Mar 31, Jun 30, Sep 30, Dec 31
+  const endsByQuarter = [
+    new Date(today.getFullYear(), 2, 31),
+    new Date(today.getFullYear(), 5, 30),
+    new Date(today.getFullYear(), 8, 30),
+    new Date(today.getFullYear(), 11, 31),
+  ];
+  for (let q = 1; q <= 4; q++) {
+    if (endsByQuarter[q - 1] >= today) return q;
+  }
+  return 4;
+}
+
+/**
+ * Quarters that have already ended in the current year are hidden.
+ * For a future year (year > today's year), all four quarters are
+ * selectable. For the current year, hide quarters whose last day is
+ * before today.
+ */
+function isQuarterSelectable(year: number, q: number): boolean {
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if (year > today.getFullYear()) return true;
+  if (year < today.getFullYear()) return false;
+  // Same year — show this quarter only if its end is today or later.
+  const endMonth = q * 3 - 1; // 0-indexed: Q1→2, Q2→5, Q3→8, Q4→11
+  const lastDay = new Date(year, endMonth + 1, 0); // day 0 of next month = last day of this month
+  return lastDay >= startOfToday;
 }
 
 function quarterLabel(year: number, q: number): string {

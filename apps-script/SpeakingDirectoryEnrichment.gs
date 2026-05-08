@@ -1501,12 +1501,26 @@ function doPost(e) {
       .map(r => r.start + ':' + (r.end || r.start))
       .join('; ');
 
+    // Quarter cell holds either a single number ("3") or a semicolon-
+    // separated list ("2;3") so multi-select stays human-readable.
+    let quarterCell = '';
+    if (payload.mode === 'quarter') {
+      if (Array.isArray(payload.quarters) && payload.quarters.length > 0) {
+        quarterCell = payload.quarters
+          .filter(q => q >= 1 && q <= 4)
+          .sort(function (a, b) { return a - b; })
+          .join('; ');
+      } else if (payload.quarter) {
+        quarterCell = String(payload.quarter);
+      }
+    }
+
     sheet.appendRow([
       payload.submittedAt || new Date().toISOString(),
       payload.name || '',
       payload.mode || '',
       payload.year || '',
-      payload.mode === 'quarter' ? (payload.quarter || '') : '',
+      quarterCell,
       blocked,
       payload.willingToTravel || '',
       payload.notes || '',

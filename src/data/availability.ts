@@ -92,10 +92,14 @@ function buildAvailability(
     const start = year > today.getFullYear() ? startOfYear : todayIso;
     windows = [{ start, end: `${year}-12-31` }];
   } else if (mode === "quarter") {
-    const q = parseInt(row["Quarter"] || "", 10);
-    if (q >= 1 && q <= 4) {
-      windows = [quarterWindow(year, q)];
-    }
+    // Cell can hold a single quarter ("3") or a multi-select list
+    // ("2;3" or "1, 4"). Each unique quarter becomes one window.
+    const qs = (row["Quarter"] || "")
+      .split(/[;,|]/)
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((q) => q >= 1 && q <= 4);
+    const uniq = Array.from(new Set(qs));
+    windows = uniq.map((q) => quarterWindow(year, q));
   } else if (mode === "blocked" || mode === "block") {
     const blocked = parseRanges(row["Blocked Ranges"] || "");
     windows = inverse(blocked, year);

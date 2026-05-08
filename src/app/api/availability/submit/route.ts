@@ -30,6 +30,9 @@ type SubmitPayload = {
   lastName: string;
   mode: "rest_of_year" | "quarter" | "blocked";
   year: number;
+  /** Multi-select. Preferred over the legacy single `quarter`. */
+  quarters?: number[];
+  /** Legacy single-quarter field, still accepted for backwards compat. */
   quarter?: number;
   blockedRanges?: Array<{ start: string; end: string }>;
   willingToTravel: "Yes" | "Domestic" | "No";
@@ -54,11 +57,26 @@ export async function POST(req: Request) {
   if (!["rest_of_year", "quarter", "blocked"].includes(body.mode)) {
     return NextResponse.json({ error: "Invalid availability mode." }, { status: 400 });
   }
-  if (body.mode === "quarter" && !(body.quarter && body.quarter >= 1 && body.quarter <= 4)) {
-    return NextResponse.json(
-      { error: "Quarter is required and must be 1-4 when mode=quarter." },
-      { status: 400 }
-    );
+  if (body.mode === "quarter") {
+    // Normalize to a `quarters: number[]` for downstream — accept either
+    // the new multi-select array OR the legacy single-quarter field.
+    const list =
+      Array.isArray(body.quarters) && body.quarters.length > 0
+        ? body.quarters
+        : body.quarter
+          ? [body.quarter]
+          : [];
+    const cleaned = Array.from(
+      new Set(list.filter((q) => q >= 1 && q <= 4))
+    ).sort((a, b) => a - b);
+    if (cleaned.length === 0) {
+      return NextResponse.json(
+        { error: "At least one quarter (1-4) is required when mode=quarter." },
+        { status: 400 }
+      );
+    }
+    body.quarters = cleaned;
+    body.quarter = cleaned[0]; // keep legacy field populated
   }
   if (body.mode === "blocked" && (!body.blockedRanges || body.blockedRanges.length === 0)) {
     return NextResponse.json(
