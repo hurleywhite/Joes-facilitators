@@ -351,7 +351,10 @@ function bioQualityIssues_(bio, name) {
   const issues = [];
   if (!bio) { issues.push('empty'); return issues; }
   const t = bio.trim();
-  if (t.length < 90) issues.push('too short (<90 chars)');
+  // Length floor: under 60 chars is almost always a stub like "International Tax." —
+  // not enough for the card. Above 60 we let it through and let the
+  // single-sentence/length pair check below decide.
+  if (t.length < 60) issues.push('too short (<60 chars)');
 
   // Emoji / pictograph
   if (/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F000}-\u{1F2FF}\u{1F900}-\u{1F9FF}\u{2700}-\u{27BF}‍️]/u.test(t)) {
@@ -392,10 +395,14 @@ function bioQualityIssues_(bio, name) {
     }
   }
 
-  // "Headline-only bio" — single sentence ending in a period, no further
-  // detail. e.g. "International Tax." or "AI Model Trainer..."
+  // Stub-bio detection: reject only when we have BOTH a single substantive
+  // sentence AND no real prose backing it. A clean single-sentence bio like
+  // "Tara Former is an AI Model Trainer and Generative AI Engineer." is fine
+  // when that's all the public signal we can find — better than leaving
+  // the cell blank. We only ding it when the bio is also short overall
+  // (<120 chars) which is a reliable proxy for "headline only, nothing else".
   const sentences = t.split(/(?<=[.!?])\s+/).filter(s => s.length > 20);
-  if (sentences.length < 2) issues.push('only one substantive sentence');
+  if (sentences.length < 2 && t.length < 120) issues.push('headline-only stub');
 
   return issues;
 }
@@ -414,10 +421,13 @@ function enrichPerson_(name, linkedInUrl, email, location) {
   const haiku = synthesizeWithClaude_(name, location, apollo, exa);
   if (haiku && haiku.status === 'ok' && haiku.text) {
     bio = haiku.text;
-  } else if (haiku && haiku.status === 'none') {
-    bio = headlineFallback_(name, apollo);
-    bioSource = '';
   } else {
+    // Haiku said NONE OR Haiku is unavailable — use the deterministic
+    // pipeline. Headline → optional clean Exa snippet → optional location.
+    // The 'none' case now ALSO tries the Exa snippet because the snippet
+    // already passes looksLikeProse_ (which filters forum/chrome). If
+    // Haiku just rejected the page, looksLikeProse_ catches the same
+    // patterns at the snippet level — so it's safe.
     bio = headlineFallback_(name, apollo);
     if (exa && exa.snippet && looksLikeProse_(exa.snippet)) {
       bio = (bio ? bio + ' ' : '') + exa.snippet;
@@ -425,6 +435,7 @@ function enrichPerson_(name, linkedInUrl, email, location) {
     if (location && bio && bio.toLowerCase().indexOf(location.toLowerCase()) === -1) {
       bio += ' Based in ' + location + '.';
     }
+    if (haiku && haiku.status === 'none') bioSource = '';
   }
 
   bio = stripSubPhDDegrees_(bio);
