@@ -427,6 +427,7 @@ function enrichPerson_(name, linkedInUrl, email, location) {
     }
   }
 
+  bio = stripSubPhDDegrees_(bio);
   bio = bio.replace(/\s+/g, ' ').trim();
   if (bio.length > 600) bio = bio.slice(0, 597).replace(/\s+\S*$/, '') + '...';
   if (!bio) return null;
@@ -543,7 +544,11 @@ function synthesizeWithClaude_(name, location, apollo, exa) {
     "- Plain prose. NO emoji, NO ✨🚀💡💼 marketing icons, NO ALL-CAPS, NO markdown headers (##), NO pipes (|).\n" +
     '- If APOLLO HEADLINE is in ALL CAPS, render it in normal Title Case.\n' +
     "- If a sentence in SOURCE PAGE is in first person ('I love designing...'), rewrite it in third person using the name.\n" +
-    '- Lead with their current role and area of focus, then add one concrete credential, client, or organization mentioned in the inputs.\n' +
+    '- Lead with their current role and area of focus, then add one concrete WORK credential, client, or organization mentioned in the inputs.\n' +
+    '- WORK EXPERIENCE ONLY. Do NOT mention any academic degree below a PhD: ' +
+    "no Bachelor's, no Master's, no MA, no MS, no MBA, no BA, no BSc, no double major, no certificates, no diplomas, no 'graduated from X', no 'earned a degree at X', no 'student of X'. Skip these entirely. " +
+    'You MAY mention a PhD or doctorate (e.g. "holds a PhD in Economics") if directly relevant. ' +
+    'A current faculty/professor role is a JOB and is fine to include — it is not a degree.\n' +
     '- Do not append "Based in [location]" — the directory shows location separately.\n' +
     "- If you cannot satisfy these rules, respond with exactly: NONE. NONE alone, no explanation.";
 
@@ -964,6 +969,101 @@ function cleanHeadline_(s) {
       .replace(/\s+/g, ' ')
       .trim()
   );
+}
+
+/**
+ * Remove mentions of Bachelor's / Master's / MBA / MS / MA / certificate /
+ * "graduated from X" / "studied at X" — anything below a PhD. PhD,
+ * doctorate, DPhil, MD, JD references are kept (terminal degrees).
+ *
+ * Two-phase strategy:
+ *   1. Drop entire sentences whose primary content is an academic
+ *      credential below PhD ("She holds a Bachelor's in X from Y").
+ *   2. Within surviving sentences, surgically excise inline credential
+ *      clauses (", along with a certificate in X", "and earned an MBA
+ *      from Y, ...").
+ *
+ * This runs after Haiku composes the bio, so even when the model
+ * ignores the prompt rule and slips a degree in, it gets stripped.
+ */
+function stripSubPhDDegrees_(bio) {
+  if (!bio) return bio;
+
+  // Tokens that signal a sub-PhD academic credential. The order matters —
+  // multi-word phrases first so "Master's degree" doesn't match the
+  // shorter "Master's".
+  const subPhdRe =
+    /(?:double major|undergraduate degree|graduate degree|bachelor['’]?s?(?:\s+degree)?|master['’]?s?(?:\s+degree)?|\bMBA\b|\bEMBA\b|\bMA\b|\bMS\b|\bMPA\b|\bMPH\b|\bMFA\b|\bMEng\b|\bMArch\b|\bMEd\b|\bLLM\b|\bM\.?Sc\b|\bM\.?A\b|\bM\.?S\b|\bBA\b|\bBS\b|\bBSc\b|\bB\.?A\b|\bB\.?S\b|\bB\.?Sc\b|\bcertificate(?:s)?\s+in\b|\bdiploma\b|\bcoursework\b)/i;
+
+  // We never want to strip a sentence that mentions a PhD/doctorate —
+  // those are kept verbatim. (We also keep MD/JD as terminal degrees.)
+  const phdRe = /\b(PhD|Ph\.D\.?|D\.Phil\.?|DPhil|doctorate|doctoral|MD\b|J\.?D\.?)\b/i;
+
+  // Phrase-level excision patterns we apply to every sentence:
+  // ", along with a certificate in X" / ", along with an MBA from Y"
+  // " and earned an MBA from Y"
+  // " holds a Bachelor's in X from Y" (when there's no PhD)
+  // "graduated from X University with a [degree]"
+  // "studied [field] at X"
+  const inlineExcisions = [
+    /,\s*along with (?:a|an|her|his|their)\s+(?:double major|certificate|diploma|bachelor['’]?s?|master['’]?s?|MBA|MA|MS|BA|BS)[^,.;]*?(?=[,.;]|$)/gi,
+    /\s+and\s+(?:earned|holds|completed|received|obtained)\s+(?:a|an|her|his|their)\s+(?:bachelor['’]?s?|master['’]?s?|MBA|EMBA|MA|MS|MPA|MPH|MFA|MEng|MArch|MEd|LLM|BA|BS|BSc|certificate|diploma|double major)[^,.;]*?(?=[,.;]|$)/gi,
+    /\s+(?:She|He|They)\s+(?:holds|earned|completed|received|obtained|graduated\s+with)\s+(?:a|an)\s+(?:bachelor['’]?s?|master['’]?s?|MBA|EMBA|MA|MS|MPA|MPH|MFA|MEng|MArch|MEd|LLM|BA|BS|BSc|certificate|diploma|double major)[^.]*?\./gi,
+    /\s+(?:graduated|graduating)\s+from\s+[^.]*?(?:university|college|school|institute)[^.]*?\./gi,
+    /\s+studied\s+(?:at|[A-Z][^.]*?)\s+(?:at\s+)?[A-Z][^.]*?\./gi
+  ];
+
+  // Phase 1 — drop whole sentences that are primarily about a sub-PhD
+  // credential. Splitter keeps trailing punctuation.
+  const sentences = bio.match(/[^.!?]+[.!?]+|\s*[^.!?]+$/g) || [bio];
+  const kept = [];
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    if (subPhdRe.test(s) && !phdRe.test(s)) {
+      // Whole-sentence drop — count how much of the sentence is degree
+      // chatter. If most of it is the credential ("She holds a Bachelor's
+      // ... brings cross-industry experience..."), excise the degree
+      // clause and keep the rest.
+      const trimmed = s.trim();
+      // If the sentence STARTS with "She/He holds/earned + degree", drop the whole sentence.
+      const subjMatch = trimmed.match(/^\s*(She|He|They)\s+(?:holds|earned|completed|received|obtained|graduated)\s+(?:a|an)\s+(?:bachelor['’]?s?|master['’]?s?|MBA|EMBA|MA|MS|MPA|MPH|MFA|MEng|MArch|MEd|LLM|BA|BS|BSc|certificate|diploma|double major)\b/i);
+      if (subjMatch) {
+        // Whole-sentence drop, but recover the trailing work clause if
+        // there is one ("..., and brings cross-industry experience..."
+        // → "She brings cross-industry experience..."). Reuse the same
+        // subject pronoun so we don't have to guess gender.
+        const subject = subjMatch[1];
+        const tail = trimmed.match(/,\s*and\s+((?:brings|leads|advises|works|specializes|consults|teaches|previously\s+\w+)[^.!?]+[.!?]?)$/i);
+        if (tail) {
+          let recovered = tail[1].trim();
+          if (!/[.!?]$/.test(recovered)) recovered += '.';
+          kept.push(`${subject} ${recovered}`);
+        }
+        continue;
+      }
+      kept.push(s);
+    } else {
+      kept.push(s);
+    }
+  }
+  let out = kept.join(' ');
+
+  // Phase 2 — inline excisions within surviving sentences.
+  for (let i = 0; i < inlineExcisions.length; i++) {
+    out = out.replace(inlineExcisions[i], '');
+  }
+
+  // Tidy up double commas, spacing, dangling ", ." artifacts left by
+  // excisions.
+  out = out
+    .replace(/\s+,/g, ',')
+    .replace(/,\s*\./g, '.')
+    .replace(/\s+\./g, '.')
+    .replace(/\.{2,}/g, '.')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return out;
 }
 
 function looksLikeProse_(s) {
