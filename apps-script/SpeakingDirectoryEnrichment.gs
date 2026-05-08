@@ -956,47 +956,288 @@ function regionFromCoords_(lat, lng) {
 /* ============================================================ */
 
 /**
- * Industry keyword dictionary. Matches src/lib/industry-parser.ts in the
- * app so the sheet's "Industry Experience" column populates the same
- * way the app does on read.
+ * Industry keyword dictionary. Mirrors src/lib/industry-parser.ts in the
+ * app — bio-mentions of named companies + generic industry keywords are
+ * BOTH unioned, so a person whose bio says "Senior Innovation Specialist
+ * at Amazon Web Services" gets the Cloud + Technology tags even though
+ * the bio never literally writes "cloud architecture".
+ *
+ * Keep this list in sync with the app's parser — both sources of truth
+ * should agree on what fires what.
  */
 const INDUSTRY_PATTERNS_ = [
-  ['Healthcare',                [/\bhealth\s*care\b/i, /\bhealthcare\b/i, /\bmedical\b/i, /\bbiotech\b/i, /\bhospitals?\b/i, /\bclinical\b/i, /\bpatient(s)?\b/i, /\blife\s+sciences?\b/i]],
-  ['Pharma',                    [/\bpharma(ceutical)?s?\b/i, /\bdrug\s+(discovery|development)\b/i]],
-  ['Financial Services',        [/\bfintech\b/i, /\bbanking\b/i, /\bbank(s)?\b/i, /\bfinancial\s+services\b/i, /\bcapital\s+markets\b/i, /\bwealth\s+management\b/i, /\binvestment\s+banking\b/i, /\btrading\b/i, /\bcredit\b/i]],
+  ['Healthcare',                [/\bhealth\s*care\b/i, /\bhealthcare\b/i, /\bmedical\b/i, /\bbiotech\b/i, /\bhospitals?\b/i, /\bclinical\b/i, /\bpatient(s)?\b/i, /\blife\s+sciences?\b/i, /\bdigital\s+health\b/i, /\bhealth[\s-]tech\b/i]],
+  ['Pharma',                    [/\bpharma(ceutical)?s?\b/i, /\bdrug\s+(discovery|development)\b/i, /\btherapeutics?\b/i]],
+  ['Financial Services',        [/\bfintech\b/i, /\bbanking\b/i, /\bbank(s)?\b/i, /\bfinancial\s+services\b/i, /\bcapital\s+markets\b/i, /\bwealth\s+management\b/i, /\binvestment\s+banking\b/i, /\btrading\b/i, /\bcredit\b/i, /\bpayments?\b/i, /\bhedge\s+funds?\b/i, /\basset\s+management\b/i, /\bprivate\s+equity\b/i]],
   ['Insurance',                 [/\binsurance\b/i, /\binsurer(s)?\b/i, /\bre[\s-]?insurance\b/i]],
-  ['Technology',                [/\btech\s+industry\b/i, /\btech\s+(companies|company|sector|firms?)\b/i, /\bsoftware\s+(industry|companies|company)\b/i]],
-  ['SaaS',                      [/\bsaas\b/i, /\bsoftware[\s-]as[\s-]a[\s-]service\b/i]],
-  ['Retail',                    [/\bretail\b/i, /\bretailer(s)?\b/i]],
-  ['E-commerce',                [/\be[\s-]?commerce\b/i, /\bonline\s+retail\b/i, /\bdtc\b/i]],
-  ['Consumer Goods',            [/\bconsumer\s+goods\b/i, /\bcpg\b/i, /\bfmcg\b/i]],
-  ['Manufacturing',             [/\bmanufactur(ing|ers?)\b/i, /\bindustrial\b/i, /\bfactor(y|ies)\b/i]],
-  ['Automotive',                [/\bautomotive\b/i, /\bauto\s+industry\b/i, /\bvehicle(s)?\b/i, /\bcar\s+(industry|companies)\b/i]],
-  ['Energy',                    [/\benergy\s+(sector|industry|companies|company)\b/i, /\boil\s*(\&|and)\s*gas\b/i, /\brenewable(s)?\b/i, /\butilit(y|ies)\b/i]],
-  ['Education',                 [/\beducation\b/i, /\bedtech\b/i, /\bacademic\b/i, /\buniversit(y|ies)\b/i, /\bschools?\b/i, /\bfaculty\b/i, /\bprofessor\b/i]],
-  ['Government',                [/\bgovernment\b/i, /\bpublic\s+sector\b/i, /\bcivic\b/i, /\bpolicy\b/i, /\bgovt\b/i, /\bdepartment\s+of\s+(defense|state|education)\b/i, /\bmilitary\b/i, /\bair\s+force\b/i]],
-  ['Media',                     [/\bmedia\b/i, /\bpublishing\b/i, /\bentertainment\b/i, /\bbroadcast/i]],
-  ['Marketing',                 [/\bmarketing\b/i, /\badvertising\b/i, /\bbrand(ing)?\b/i]],
-  ['Legal',                     [/\blegal\b/i, /\blaw\s+firms?\b/i, /\battorneys?\b/i]],
+  ['Technology',                [/\btech\s+industry\b/i, /\btech\s+(companies|company|sector|firms?)\b/i, /\bsoftware\s+(industry|companies|company)\b/i, /\bsilicon\s+valley\b/i, /\btech\s+startups?\b/i]],
+  ['SaaS',                      [/\bsaas\b/i, /\bsoftware[\s-]as[\s-]a[\s-]service\b/i, /\bb2b\s+software\b/i]],
+  ['Retail',                    [/\bretail\b/i, /\bretailer(s)?\b/i, /\bd2c\b/i]],
+  ['E-commerce',                [/\be[\s-]?commerce\b/i, /\bonline\s+retail\b/i, /\bdtc\b/i, /\bmarketplaces?\b/i]],
+  ['Consumer Goods',            [/\bconsumer\s+goods\b/i, /\bcpg\b/i, /\bfmcg\b/i, /\bbeverages?\b/i]],
+  ['Manufacturing',             [/\bmanufactur(ing|ers?)\b/i, /\bindustrial\b/i, /\bfactor(y|ies)\b/i, /\bsupply\s+chain\b/i]],
+  ['Automotive',                [/\bautomotive\b/i, /\bauto\s+industry\b/i, /\bvehicle(s)?\b/i, /\bcar\s+(industry|companies)\b/i, /\bmobility\s+(sector|companies)\b/i]],
+  ['Energy',                    [/\benergy\s+(sector|industry|companies|company)\b/i, /\boil\s*(\&|and)\s*gas\b/i, /\brenewable(s)?\b/i, /\butilit(y|ies)\b/i, /\bclean\s+energy\b/i]],
+  ['Education',                 [/\beducation\b/i, /\bedtech\b/i, /\buniversit(y|ies)\b/i, /\bschools?\b/i, /\bfaculty\b/i, /\bprofessor\b/i, /\bteach(er|ing)\b/i, /\bcurriculum\b/i]],
+  ['Government',                [/\bgovernment\b/i, /\bpublic\s+sector\b/i, /\bcivic\b/i, /\bpolicy\b/i, /\bgovt\b/i, /\bdepartment\s+of\s+(defense|state|education|energy|treasury)\b/i, /\bmilitary\b/i, /\bair\s+force\b/i, /\bfederal\s+agency\b/i]],
+  ['Media',                     [/\bmedia\b/i, /\bpublishing\b/i, /\bentertainment\b/i, /\bbroadcast/i, /\bpodcast/i, /\bstreaming\b/i]],
+  ['Marketing',                 [/\bmarketing\b/i, /\badvertising\b/i, /\bbrand(ing)?\b/i, /\bagenc(y|ies)\b/i]],
+  ['Legal',                     [/\blegal\b/i, /\blaw\s+firms?\b/i, /\battorneys?\b/i, /\bcompliance\b/i]],
   ['Real Estate',               [/\breal\s+estate\b/i, /\bpropert(y|ies)\b/i, /\bproptech\b/i]],
   ['Telecom',                   [/\btelecom(munications)?\b/i, /\bmobile\s+operators?\b/i]],
-  ['Logistics',                 [/\blogistics\b/i, /\bsupply\s+chain\b/i, /\bshipping\b/i, /\bfreight\b/i]],
-  ['Travel & Hospitality',      [/\btravel\b/i, /\bhospitality\b/i, /\bairlines?\b/i, /\bhotels?\b/i]],
-  ['Non-profit',                [/\bnon[\s-]?profit(s)?\b/i, /\bngo(s)?\b/i, /\bcharit(y|ies)\b/i, /\bnonprofit/i, /\brockefeller\b/i, /\brobin\s+hood\s+foundation\b/i]],
-  ['Enterprise / Fortune 500',  [/\bfortune\s*500\b/i, /\bfortune\s*100\b/i, /\bf500\b/i, /\benterprise\s+companies\b/i, /\blarge\s+enterprises?\b/i, /\bfortune\s*400\b/i]],
-  ['Startups',                  [/\bstartup(s)?\b/i, /\bventure\s+backed\b/i, /\bvc[\s-]backed\b/i, /\bearly[\s-]stage\b/i]],
-  ['Cloud',                     [/\bcloud\s+(architecture|computing|infrastructure|providers?|platforms?)\b/i, /\baws\b/i, /\bazure\b/i, /\bgcp\b/i, /\bamazon\s+web\s+services\b/i]]
+  ['Logistics',                 [/\blogistics\b/i, /\bsupply\s+chain\b/i, /\bshipping\b/i, /\bfreight\b/i, /\bwarehous/i]],
+  ['Travel & Hospitality',      [/\btravel\b/i, /\bhospitality\b/i, /\bairlines?\b/i, /\bhotels?\b/i, /\bcruise/i]],
+  ['Non-profit',                [/\bnon[\s-]?profit(s)?\b/i, /\bngo(s)?\b/i, /\bcharit(y|ies)\b/i, /\bnonprofit/i, /\bfoundation\b/i]],
+  ['Enterprise / Fortune 500',  [/\bfortune\s*500\b/i, /\bfortune\s*100\b/i, /\bfortune\s*400\b/i, /\bf500\b/i, /\benterprise\s+companies\b/i, /\blarge\s+enterprises?\b/i, /\bfortune-?(?:100|500)\b/i]],
+  ['Startups',                  [/\bstartup(s)?\b/i, /\bventure\s+backed\b/i, /\bvc[\s-]backed\b/i, /\bearly[\s-]stage\b/i, /\bfounder\b/i, /\bco[\s-]?founder\b/i]],
+  ['Cloud',                     [/\bcloud\s+(architecture|computing|infrastructure|providers?|platforms?)\b/i, /\baws\b/i, /\bazure\b/i, /\bgcp\b/i, /\bgoogle\s+cloud\b/i]]
 ];
 
+/**
+ * Curated company → industries map. Same shape as the app's
+ * KNOWN_COMPANIES — kept in sync intentionally so a bio mention of
+ * "Pfizer" produces Pharma whether the app or the script reads it.
+ */
+const KNOWN_COMPANIES_ = {
+  // Tech / Cloud
+  'Google': ['Technology', 'Cloud'],
+  'Microsoft': ['Technology', 'Cloud'],
+  'Microsoft Azure': ['Cloud'],
+  'Azure': ['Cloud'],
+  'Amazon': ['Technology', 'E-commerce', 'Cloud'],
+  'Amazon Web Services': ['Cloud'],
+  'AWS': ['Cloud'],
+  'Apple': ['Technology'],
+  'Meta': ['Technology'],
+  'Facebook': ['Technology'],
+  'Netflix': ['Media', 'Technology'],
+  'Spotify': ['Media', 'Technology'],
+  'IBM': ['Technology'],
+  'Intel': ['Technology'],
+  'NVIDIA': ['Technology'],
+  'Cisco': ['Technology'],
+  'Oracle': ['Technology', 'SaaS'],
+  'Salesforce': ['SaaS', 'Technology'],
+  'HubSpot': ['SaaS', 'Marketing'],
+  'Adobe': ['SaaS'],
+  'SAP': ['SaaS'],
+  'Pandora': ['Media'],
+  'SiriusXM': ['Media'],
+  'Slack': ['SaaS'],
+  'Mural': ['SaaS'],
+  'Atlassian': ['SaaS'],
+  'Cadence': ['Technology'],
+  'Propellernet': ['Marketing'],
+  'Howspace': ['SaaS'],
+  // Financial Services
+  'Visa': ['Financial Services'],
+  'Mastercard': ['Financial Services'],
+  'American Express': ['Financial Services'],
+  'Amex': ['Financial Services'],
+  'JPMorgan': ['Financial Services'],
+  'Goldman Sachs': ['Financial Services'],
+  'Morgan Stanley': ['Financial Services'],
+  'BlackRock': ['Financial Services'],
+  'Bank of America': ['Financial Services'],
+  'Capital One': ['Financial Services'],
+  'Wells Fargo': ['Financial Services'],
+  'Citibank': ['Financial Services'],
+  'Citigroup': ['Financial Services'],
+  'HSBC': ['Financial Services'],
+  'BBVA': ['Financial Services'],
+  'BNP Paribas': ['Financial Services'],
+  'Arval': ['Financial Services'],
+  'Lloyds Banking Group': ['Financial Services'],
+  'Lloyds Bank': ['Financial Services'],
+  'LendingClub': ['Financial Services'],
+  'Lending Club': ['Financial Services'],
+  'Stripe': ['Financial Services', 'Technology'],
+  'PayPal': ['Financial Services'],
+  'Ameriprise': ['Financial Services'],
+  'Ameriprise Financial': ['Financial Services'],
+  'DE Shaw': ['Financial Services'],
+  'Tamkeen': ['Financial Services', 'Government'],
+  // Insurance
+  'Zurich Insurance': ['Insurance'],
+  'Zurich Insurances': ['Insurance'],
+  'MetLife': ['Insurance'],
+  'Allianz': ['Insurance'],
+  'AXA': ['Insurance'],
+  'Liberty Mutual': ['Insurance'],
+  'AIG': ['Insurance'],
+  // Pharma / Healthcare
+  'Pfizer': ['Pharma'],
+  'Merck': ['Pharma'],
+  'AbbVie': ['Pharma'],
+  'Novartis': ['Pharma'],
+  'AstraZeneca': ['Pharma'],
+  'GlaxoSmithKline': ['Pharma'],
+  'GSK': ['Pharma'],
+  'Roche': ['Pharma'],
+  'Sanofi': ['Pharma'],
+  'Eli Lilly': ['Pharma'],
+  'Johnson & Johnson': ['Pharma', 'Healthcare'],
+  'Bayer': ['Pharma'],
+  'Bristol-Myers': ['Pharma'],
+  'Bristol-Myers Squibb': ['Pharma'],
+  'Allina Health': ['Healthcare'],
+  'UnitedHealth': ['Healthcare'],
+  'Anthem': ['Healthcare'],
+  'Cigna': ['Healthcare'],
+  'Walgreens': ['Healthcare', 'Retail'],
+  'CVS': ['Healthcare', 'Retail'],
+  // Retail / CPG
+  'Walmart': ['Retail'],
+  'Target': ['Retail'],
+  'Costco': ['Retail'],
+  'Best Buy': ['Retail'],
+  'Etsy': ['E-commerce', 'Retail'],
+  'Nike': ['Retail', 'Consumer Goods'],
+  'Adidas': ['Retail', 'Consumer Goods'],
+  'Under Armour': ['Retail', 'Consumer Goods'],
+  'Chanel': ['Retail', 'Consumer Goods'],
+  'IKEA': ['Retail', 'Consumer Goods'],
+  'Nestlé': ['Consumer Goods'],
+  'Nestle': ['Consumer Goods'],
+  'P&G': ['Consumer Goods'],
+  'Procter & Gamble': ['Consumer Goods'],
+  'Unilever': ['Consumer Goods'],
+  'Coca-Cola': ['Consumer Goods'],
+  'PepsiCo': ['Consumer Goods'],
+  'Pepsi': ['Consumer Goods'],
+  // Consulting / Pro Services
+  'McKinsey': ['Enterprise / Fortune 500'],
+  'BCG': ['Enterprise / Fortune 500'],
+  'Boston Consulting Group': ['Enterprise / Fortune 500'],
+  'Bain': ['Enterprise / Fortune 500'],
+  'Deloitte': ['Enterprise / Fortune 500'],
+  'Deloitte Greenhouse': ['Enterprise / Fortune 500'],
+  'Accenture': ['Enterprise / Fortune 500', 'Technology'],
+  'KPMG': ['Enterprise / Fortune 500'],
+  'PwC': ['Enterprise / Fortune 500'],
+  'EY': ['Enterprise / Fortune 500'],
+  'Ernst & Young': ['Enterprise / Fortune 500'],
+  'Heidrick & Struggles': ['Enterprise / Fortune 500'],
+  'businessfourzero': ['Enterprise / Fortune 500'],
+  'IDEO': ['Education'],
+  'Cap Gemini': ['Enterprise / Fortune 500', 'Technology'],
+  'Capgemini': ['Enterprise / Fortune 500', 'Technology'],
+  'Kearney': ['Enterprise / Fortune 500'],
+  'Point B': ['Enterprise / Fortune 500'],
+  'BanyanGlobal': ['Financial Services'],
+  'The Oxford Group': ['Education'],
+  // Automotive
+  'Tesla': ['Automotive'],
+  'Ford': ['Automotive'],
+  'GM': ['Automotive'],
+  'General Motors': ['Automotive'],
+  'Toyota': ['Automotive'],
+  'BMW': ['Automotive'],
+  'Honda': ['Automotive'],
+  'Nissan': ['Automotive'],
+  // Travel / Hospitality
+  'Marriott': ['Travel & Hospitality'],
+  'Hilton': ['Travel & Hospitality'],
+  'Airbnb': ['Travel & Hospitality'],
+  'Delta': ['Travel & Hospitality'],
+  'United Airlines': ['Travel & Hospitality'],
+  'American Airlines': ['Travel & Hospitality'],
+  // Energy
+  'Shell': ['Energy'],
+  'BP': ['Energy'],
+  'ExxonMobil': ['Energy'],
+  'Chevron': ['Energy'],
+  'Saudi Aramco': ['Energy'],
+  // Education / Academic
+  'Harvard': ['Education'],
+  'Harvard Kennedy School': ['Education'],
+  'Harvard Business School': ['Education'],
+  'MIT': ['Education'],
+  'MIT xPRO': ['Education'],
+  'Stanford': ['Education'],
+  'Berkeley': ['Education'],
+  'Berkeley SkyDeck': ['Education', 'Startups'],
+  'Northwestern Kellogg': ['Education'],
+  'Northwestern': ['Education'],
+  'Imperial College': ['Education'],
+  'Imperial College Business School': ['Education'],
+  'Kellogg': ['Education'],
+  'James Madison University': ['Education'],
+  // Non-profit / Government
+  'Rockefeller Foundation': ['Non-profit'],
+  'Robin Hood Foundation': ['Non-profit'],
+  'Bill & Melinda Gates Foundation': ['Non-profit'],
+  'AARP': ['Non-profit'],
+  'United Nations': ['Non-profit', 'Government'],
+  'NASA': ['Government'],
+  'Department of Defense': ['Government'],
+  'Department of State': ['Government'],
+  'US Air Force': ['Government'],
+  'Air Force': ['Government'],
+  'Veterans Affairs': ['Government'],
+  'NYC Department of Education': ['Government', 'Education'],
+  // Media
+  'Disney': ['Media'],
+  'NBC': ['Media'],
+  'BBC': ['Media'],
+  'Kantar': ['Marketing'],
+  'Ogilvy': ['Marketing'],
+  'TED': ['Media', 'Non-profit'],
+  'Tough Mudder': ['Media', 'Travel & Hospitality'],
+  // Telecom
+  'AT&T': ['Telecom'],
+  'Verizon': ['Telecom'],
+  'T-Mobile': ['Telecom'],
+};
+
+// Compile a single regex matching ANY known company name. Sorted longest-
+// first so "Amazon Web Services" beats "Amazon". Special chars escaped so
+// "P&G" / "AT&T" don't break the regex.
+const _companyOrder_ = Object.keys(KNOWN_COMPANIES_).sort(function (a, b) {
+  return b.length - a.length;
+});
+const _companyMatcher_ = (function () {
+  const escaped = _companyOrder_.map(function (s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  });
+  return new RegExp('\\b(?:' + escaped.join('|') + ')(?=\\b|[^A-Za-z0-9])', 'gi');
+})();
+
+/**
+ * Parse industries from any free text. Combines:
+ *   - INDUSTRY_PATTERNS_ keyword regex hits ("fintech", "fortune 500", etc.)
+ *   - KNOWN_COMPANIES_ name mentions (Visa → Financial Services, AWS → Cloud)
+ */
 function parseIndustriesFromText_(text) {
   if (!text) return [];
   const found = {};
+
+  // Generic keyword pass.
   for (let i = 0; i < INDUSTRY_PATTERNS_.length; i++) {
     const [name, regs] = INDUSTRY_PATTERNS_[i];
     for (let j = 0; j < regs.length; j++) {
       if (regs[j].test(text)) { found[name] = true; break; }
     }
   }
+
+  // Company-mention pass — every named employer/client implies a set of
+  // industries. This is what catches AWS-mention → Cloud and Pfizer-mention
+  // → Pharma even when the bio doesn't use those exact industry words.
+  _companyMatcher_.lastIndex = 0;
+  let m;
+  while ((m = _companyMatcher_.exec(text)) !== null) {
+    const matched = m[0];
+    let canonical = null;
+    for (let i = 0; i < _companyOrder_.length; i++) {
+      if (_companyOrder_[i].toLowerCase() === matched.toLowerCase()) {
+        canonical = _companyOrder_[i]; break;
+      }
+    }
+    if (!canonical) continue;
+    const inds = KNOWN_COMPANIES_[canonical] || [];
+    for (let k = 0; k < inds.length; k++) found[inds[k]] = true;
+  }
+
   return Object.keys(found);
 }
 
