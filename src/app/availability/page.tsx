@@ -80,43 +80,54 @@ export default function AvailabilityPage() {
 
   if (done) {
     return (
-      <main className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm max-w-md w-full p-8 text-center">
-          <div className="w-12 h-12 rounded-full bg-green-100 text-green-700 flex items-center justify-center mx-auto mb-4">
-            <Check className="w-6 h-6" />
+      <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 flex flex-col">
+        <Header minimal />
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm max-w-md w-full p-10 text-center">
+            <div className="w-14 h-14 rounded-full bg-green-100 text-green-700 flex items-center justify-center mx-auto mb-5">
+              <Check className="w-7 h-7" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              Got it, thanks!
+            </h1>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Your availability has been recorded. The ArcticMind team will see
+              it automatically — no further action needed. You can resubmit any
+              time to update your windows.
+            </p>
+            <button
+              onClick={() => {
+                setDone(false);
+                setFirstName("");
+                setLastName("");
+                setBlockedRanges([{ start: "", end: "" }]);
+                setNotes("");
+              }}
+              className="mt-6 inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800"
+            >
+              Submit another response →
+            </button>
           </div>
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Got it, thanks!</h1>
-          <p className="text-sm text-gray-600">
-            Your availability has been recorded. The team will see it
-            automatically — no further action needed.
-          </p>
-          <button
-            onClick={() => {
-              setDone(false);
-              setFirstName("");
-              setLastName("");
-              setBlockedRanges([{ start: "", end: "" }]);
-              setNotes("");
-            }}
-            className="mt-6 text-xs text-indigo-600 hover:text-indigo-800"
-          >
-            Submit another response
-          </button>
         </div>
+        <Footer />
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 py-10 px-4">
-      <div className="max-w-xl mx-auto bg-white border border-gray-200 rounded-2xl shadow-sm p-8 space-y-6">
-        <header>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Set your availability
+    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 flex flex-col">
+      <Header />
+      <div className="flex-1 py-10 px-4">
+        <div className="max-w-2xl mx-auto bg-white border border-gray-200 rounded-2xl shadow-sm p-8 sm:p-10 space-y-7">
+        <header className="border-b border-gray-100 pb-5">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
+            Share your availability
           </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Let us know when you&apos;re open to facilitate engagements. You
-            can update this any time.
+          <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+            Let the ArcticMind team know when you&apos;re open to facilitate
+            engagements. We&apos;ll match you with deals that fit. You can
+            update this any time — your latest submission overwrites the
+            previous one.
           </p>
         </header>
 
@@ -301,21 +312,74 @@ export default function AvailabilityPage() {
           </div>
         )}
 
-        <button
-          onClick={submit}
-          disabled={submitting}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 disabled:bg-gray-300"
-        >
-          {submitting ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" /> Submitting…
-            </>
-          ) : (
-            "Submit availability"
-          )}
-        </button>
+        <div className="pt-2">
+          <button
+            onClick={submit}
+            disabled={submitting}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 disabled:bg-gray-300 shadow-sm transition-colors"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" /> Submitting…
+              </>
+            ) : (
+              "Submit availability"
+            )}
+          </button>
+          <p className="text-[11px] text-gray-400 text-center mt-3">
+            Your response is shared only with the ArcticMind facilitation
+            team. We don&apos;t share it externally.
+          </p>
+        </div>
+        </div>
       </div>
+      <Footer />
     </main>
+  );
+}
+
+/* ---------- header / footer ---------- */
+
+function Header({ minimal = false }: { minimal?: boolean }) {
+  return (
+    <header className="bg-white/80 backdrop-blur border-b border-gray-200">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <img src="/logo.avif" alt="ArcticMind" className="h-8 w-auto" />
+          <div>
+            <div className="text-sm font-bold text-gray-900 tracking-tight">
+              ArcticMind
+            </div>
+            {!minimal && (
+              <div className="text-[11px] text-gray-500">
+                Facilitator availability
+              </div>
+            )}
+          </div>
+        </div>
+        <a
+          href="https://arcticblue.ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-gray-500 hover:text-gray-800"
+        >
+          arcticblue.ai
+        </a>
+      </div>
+    </header>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="border-t border-gray-200 bg-white/60 mt-8">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between text-[11px] text-gray-400">
+        <span>
+          ArcticMind &middot; AI training &amp; facilitation
+        </span>
+        <span>Questions? team@arcticblue.ai</span>
+      </div>
+    </footer>
   );
 }
 

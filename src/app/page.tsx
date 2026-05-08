@@ -5,10 +5,12 @@ import { Facilitator } from "@/types/facilitator";
 import FacilitatorCard from "@/components/FacilitatorCard";
 import FilterBar from "@/components/FilterBar";
 import StatsBar from "@/components/StatsBar";
-import { RefreshCw, Briefcase, MessageSquare } from "lucide-react";
+import { RefreshCw, Briefcase, MessageSquare, Calendar, Copy, Check, Link2 } from "lucide-react";
 import Link from "next/link";
+import FacilitatorDrawer from "@/components/FacilitatorDrawer";
 
 const MapView = lazy(() => import("@/components/MapView"));
+const CalendarView = lazy(() => import("@/components/CalendarView"));
 
 export default function Home() {
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
@@ -22,7 +24,9 @@ export default function Home() {
   const [regionFilter, setRegionFilter] = useState("All");
   const [industryFilter, setIndustryFilter] = useState("All");
   const [availableOn, setAvailableOn] = useState<string>("");
-  const [view, setView] = useState<"cards" | "map">("cards");
+  const [view, setView] = useState<"cards" | "map" | "calendar">("cards");
+  const [drawerFacilitator, setDrawerFacilitator] = useState<Facilitator | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -145,6 +149,33 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                const url = `${window.location.origin}/availability`;
+                try {
+                  await navigator.clipboard.writeText(url);
+                  setLinkCopied(true);
+                  setTimeout(() => setLinkCopied(false), 2000);
+                } catch {
+                  // Clipboard blocked — fall through to opening in new tab.
+                  window.open(url, "_blank");
+                }
+              }}
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-amber-50 text-amber-800 rounded-lg hover:bg-amber-100 transition-colors"
+              title="Copy facilitator availability form link"
+            >
+              {linkCopied ? (
+                <>
+                  <Check className="w-4 h-4 text-green-600" />
+                  Link copied
+                </>
+              ) : (
+                <>
+                  <Link2 className="w-4 h-4" />
+                  Share avail. form
+                </>
+              )}
+            </button>
             <Link
               href="/chat"
               className="flex items-center gap-2 px-3 py-2 text-sm bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors"
@@ -246,8 +277,8 @@ export default function Home() {
         {/* Content */}
         {!loading && !error && (
           <>
-            {view === "cards" ? (
-              filtered.length > 0 ? (
+            {view === "cards" &&
+              (filtered.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filtered.map((f) => (
                     <FacilitatorCard key={f.id} f={f} />
@@ -257,8 +288,9 @@ export default function Home() {
                 <div className="text-center py-16 text-gray-400">
                   No facilitators match your filters.
                 </div>
-              )
-            ) : (
+              ))}
+
+            {view === "map" && (
               <Suspense
                 fallback={
                   <div className="flex items-center justify-center py-20">
@@ -269,6 +301,21 @@ export default function Home() {
                 <div style={{ height: "600px" }}>
                   <MapView facilitators={filtered} />
                 </div>
+              </Suspense>
+            )}
+
+            {view === "calendar" && (
+              <Suspense
+                fallback={
+                  <div className="flex items-center justify-center py-20">
+                    <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+                  </div>
+                }
+              >
+                <CalendarView
+                  facilitators={filtered}
+                  onPickFacilitator={setDrawerFacilitator}
+                />
               </Suspense>
             )}
 
@@ -317,6 +364,11 @@ export default function Home() {
           Facilitator Pool Manager &middot; Data sourced from Google Sheets
         </div>
       </footer>
+
+      <FacilitatorDrawer
+        facilitator={drawerFacilitator}
+        onClose={() => setDrawerFacilitator(null)}
+      />
     </main>
   );
 }

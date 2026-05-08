@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Filter, LayoutGrid, Map as MapIcon } from "lucide-react";
+import { Search, Filter, LayoutGrid, Map as MapIcon, Calendar } from "lucide-react";
 
 interface FilterBarProps {
   search: string;
@@ -16,8 +16,8 @@ interface FilterBarProps {
   industryFilter: string;
   onIndustryChange: (v: string) => void;
   industryOptions: string[];
-  view: "cards" | "map";
-  onViewChange: (v: "cards" | "map") => void;
+  view: "cards" | "map" | "calendar";
+  onViewChange: (v: "cards" | "map" | "calendar") => void;
   totalCount: number;
   filteredCount: number;
 }
@@ -80,6 +80,18 @@ export default function FilterBar({
           >
             <MapIcon className="w-4 h-4" />
             Map
+          </button>
+          <button
+            onClick={() => onViewChange("calendar")}
+            className={`px-3 py-2 flex items-center gap-1.5 text-sm transition-colors ${
+              view === "calendar"
+                ? "bg-indigo-600 text-white"
+                : "bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+            title="Show availability timeline"
+          >
+            <Calendar className="w-4 h-4" />
+            Calendar
           </button>
         </div>
       </div>
