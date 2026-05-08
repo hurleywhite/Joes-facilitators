@@ -61,6 +61,11 @@ async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
       // weren't in the sheet column.
       const industryExperience = mergeIndustries(f.industryExperience || [], bio);
       const pastCompanies = mergePastCompanies(f.pastCompanies || [], bio);
+      // Defensive English strip — also covers the dummy-facilitators
+      // fallback path which still hardcodes ["English"] on every entry.
+      const languages = (f.languages || []).filter(
+        (l) => l.toLowerCase() !== "english"
+      );
 
       // Region: prefer coords-derived over the country-string derivation
       // baked into sheets.ts. The country derivation drifts when the
@@ -69,7 +74,7 @@ async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
       const coordRegion = regionFromCoords(lat, lng);
       const region = coordRegion || f.region;
 
-      return { ...f, photoUrl, lat, lng, bio, industryExperience, pastCompanies, region };
+      return { ...f, photoUrl, lat, lng, bio, industryExperience, pastCompanies, languages, region };
     })
   );
 }

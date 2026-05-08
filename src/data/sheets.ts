@@ -329,7 +329,12 @@ export async function fetchFromGoogleSheet(
         lat: parseFloat(getCol(row, ["Lat", "Latitude"]) || "0"),
         lng: parseFloat(getCol(row, ["Lng", "Lon", "Long", "Longitude"]) || "0"),
         bio: enrichedBio,
-        languages: splitList(getCol(row, ["Languages", "Language"])),
+        // English is the assumed default and Joe took it out of the sheet
+        // intentionally — strip any stray "English" entries that may have
+        // come back via Apollo enrichment so they don't reappear as chips.
+        languages: splitList(getCol(row, ["Languages", "Language"])).filter(
+          (l) => l.toLowerCase() !== "english"
+        ),
         // Merge sheet-provided industries with bio-parsed ones so people who
         // mention "fintech" / "Pharma" / "Cloud" in their Bio still surface
         // for industry filtering even before Joe hand-tags them.

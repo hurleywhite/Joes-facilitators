@@ -56,9 +56,11 @@ function onOpen() {
     .addItem('Re-Enrich Bad Bios (auto-detect)', 'reEnrichBadBios')
     .addItem('Re-Enrich ALL Bios (overwrite)', 'reEnrichAllBios')
     .addSeparator()
+    .addItem('Fix All Bad Data (one-click)',   'fixAllBadData')
     .addItem('Fill Missing Lat / Lng',         'fillMissingCoords')
     .addItem('Fill Region from Lat/Lng',       'fillRegionFromCoords')
     .addItem('Fill Industries from Bio',       'fillIndustriesFromBio')
+    .addItem("Strip 'English' from Languages", 'stripEnglishFromLanguages')
     .addSeparator()
     .addItem('Install / repair auto-run',      'installEnrichmentTrigger')
     .addItem('Remove auto-run',                'uninstallEnrichmentTrigger')
@@ -151,6 +153,122 @@ function reEnrichAllBios() {
   }
   const stats = runEnrichmentPass_(/* maxRows */ 0, /* mode */ 'empty');
   showEnrichmentSummary_('Full re-enrichment done.', stats);
+}
+
+/* ============================================================ */
+/* ONE-CLICK DATA HEALTH FIX                                    */
+/* ============================================================ */
+
+/**
+ * Runs every cleanup pass on the sheet in one go and reports a summary.
+ * No bio re-enrichment (that costs API credits and is gated behind its
+ * own button) — just the deterministic data-health fixes:
+ *   1. Fill blank Lat/Lng from Location (free, cached geocoder).
+ *   2. Set / correct Region from Lat/Lng (catches "Lumpur, Malaysia"
+ *      tagged as "Americas" and similar pin/region mismatches).
+ *   3. Re-derive Industry Experience from each existing Bio (idempotent
+ *      merge — sheet-provided industries are preserved, new ones added).
+ *   4. Strip "English" from Languages — Joe removed it from the sheet on
+ *      purpose; this catches any rows where Apollo or a manual edit put
+ *      it back.
+ *
+ * Safe to run repeatedly. Skips rows whose values are already correct,
+ * so a second run does nothing if the first run already fixed everything.
+ */
+function fixAllBadData() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName(SPEAKING_DIRECTORY_SHEET);
+  if (!sheet) throw new Error('"' + SPEAKING_DIRECTORY_SHEET + '" sheet not found.');
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const colOf = headerMap_(headers);
+  const lastRow = sheet.getLastRow();
+
+  const stats = {
+    coordsFilled: 0,
+    regionsSet: 0,
+    regionsFixed: 0,
+    industriesUpdated: 0,
+    englishStripped: 0,
+  };
+
+  for (let r = 2; r <= lastRow; r++) {
+    const name = colOf['Name']
+      ? String(sheet.getRange(r, colOf['Name']).getValue() || '').trim() : '';
+    if (!name) continue;
+
+    // 1) Fill missing lat/lng
+    if (colOf['Location'] && colOf['Lat'] && colOf['Lng']) {
+      const location = String(sheet.getRange(r, colOf['Location']).getValue() || '').trim();
+      if (location && fillCoordsForRow_(sheet, colOf, r, location)) stats.coordsFilled++;
+    }
+
+    // 2) Fix region from coords (overrides stale sheet values)
+    const result = fillRegionForRow_(sheet, colOf, r);
+    if (result === 'set')        stats.regionsSet++;
+    else if (result === 'fixed') stats.regionsFixed++;
+
+    // 3) Re-derive industries from existing bio
+    if (colOf['Industry Experience'] && colOf['Bio']) {
+      const bio = String(sheet.getRange(r, colOf['Bio']).getValue() || '').trim();
+      if (bio && fillIndustriesForRow_(sheet, colOf, r, bio, '')) stats.industriesUpdated++;
+    }
+
+    // 4) Strip "English" from Languages
+    if (colOf['Languages'] || colOf['Language']) {
+      const langCol = colOf['Languages'] || colOf['Language'];
+      const cell = sheet.getRange(r, langCol);
+      const raw = String(cell.getValue() || '');
+      const langs = raw.split(/[;,|]/).map(s => s.trim()).filter(Boolean);
+      const filtered = langs.filter(l => l.toLowerCase() !== 'english');
+      if (filtered.length !== langs.length) {
+        cell.setValue(filtered.join('; '));
+        stats.englishStripped++;
+      }
+    }
+
+    Utilities.sleep(50);
+  }
+
+  SpreadsheetApp.getUi().alert(
+    'Data fix complete.\n' +
+    '  Lat/Lng filled:        ' + stats.coordsFilled + '\n' +
+    '  Regions newly set:     ' + stats.regionsSet + '\n' +
+    '  Regions corrected:     ' + stats.regionsFixed + '\n' +
+    '  Industries updated:    ' + stats.industriesUpdated + '\n' +
+    '  "English" stripped:    ' + stats.englishStripped
+  );
+}
+
+/**
+ * One-time cleanup — removes "English" entries from the Languages
+ * column on every row. Surfaced as its own menu item so it can be run
+ * standalone without triggering the rest of the data-health pass.
+ */
+function stripEnglishFromLanguages() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName(SPEAKING_DIRECTORY_SHEET);
+  if (!sheet) throw new Error('"' + SPEAKING_DIRECTORY_SHEET + '" sheet not found.');
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const colOf = headerMap_(headers);
+  const langCol = colOf['Languages'] || colOf['Language'];
+  if (!langCol) {
+    SpreadsheetApp.getUi().alert('"Languages" column not found.');
+    return;
+  }
+  const lastRow = sheet.getLastRow();
+  let changed = 0;
+  for (let r = 2; r <= lastRow; r++) {
+    const cell = sheet.getRange(r, langCol);
+    const raw = String(cell.getValue() || '');
+    if (!raw) continue;
+    const langs = raw.split(/[;,|]/).map(s => s.trim()).filter(Boolean);
+    const filtered = langs.filter(l => l.toLowerCase() !== 'english');
+    if (filtered.length !== langs.length) {
+      cell.setValue(filtered.join('; '));
+      changed++;
+    }
+  }
+  SpreadsheetApp.getUi().alert(
+    "'English' stripped from " + changed + ' row' + (changed === 1 ? '' : 's') + '.'
+  );
 }
 
 /* ============================================================ */
