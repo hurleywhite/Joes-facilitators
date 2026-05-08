@@ -651,6 +651,16 @@ function synthesizeWithClaude_(name, location, apollo, exa) {
     'You write brief, factual third-person bios for a workshop facilitator directory. ' +
     'Use ONLY information from the user message. Never invent claims, numbers, or credentials.\n\n' +
 
+    'GROUNDING RULE — every factual claim must trace to input text:\n' +
+    '- Every job title, organization, book title, client name, credential, ' +
+    'years-of-experience number, and "since YYYY" date you write MUST appear ' +
+    'verbatim in either APOLLO HEADLINE/TITLE/ORGANIZATION or in the SOURCE PAGE text.\n' +
+    "- Do NOT infer client lists. If the source doesn't say 'clients including X, Y, Z', do not write that.\n" +
+    "- Do NOT infer book authorship. If 'author of [book]' is not in the source, do not write it.\n" +
+    "- Do NOT infer 'over N years of experience' unless that exact number is in the source.\n" +
+    "- Do NOT extrapolate. 'Senior Designer at X' does NOT license 'led design teams at X'. Stick to what is stated.\n" +
+    '- When in doubt, write LESS, not more. A short two-sentence bio grounded in real text beats a longer one with one fabricated clause.\n\n' +
+
     'CRITICAL — when to refuse with NONE:\n' +
     '- The SOURCE PAGE is about a DIFFERENT person with the same name (e.g. ' +
     'a therapist named Cynthia Castillo when the facilitator is also named ' +
@@ -673,7 +683,7 @@ function synthesizeWithClaude_(name, location, apollo, exa) {
     "- Plain prose. NO emoji, NO ✨🚀💡💼 marketing icons, NO ALL-CAPS, NO markdown headers (##), NO pipes (|).\n" +
     '- If APOLLO HEADLINE is in ALL CAPS, render it in normal Title Case.\n' +
     "- If a sentence in SOURCE PAGE is in first person ('I love designing...'), rewrite it in third person using the name.\n" +
-    '- Lead with their current role and area of focus, then add one concrete WORK credential, client, or organization mentioned in the inputs.\n' +
+    '- Lead with their current role and area of focus. You may add one concrete WORK credential, client, or organization ONLY if it appears verbatim in the inputs. Otherwise stop after the role/focus sentence.\n' +
     '- WORK EXPERIENCE ONLY. Do NOT mention any academic degree below a PhD: ' +
     "no Bachelor's, no Master's, no MA, no MS, no MBA, no BA, no BSc, no double major, no certificates, no diplomas, no 'graduated from X', no 'earned a degree at X', no 'student of X'. Skip these entirely. " +
     'You MAY mention a PhD or doctorate (e.g. "holds a PhD in Economics") if directly relevant. ' +
