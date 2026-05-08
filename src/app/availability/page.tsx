@@ -228,38 +228,47 @@ export default function AvailabilityPage() {
           </select>
         </Field>
 
-        {/* Quarter(s) — multi-select. Past quarters of the current
-            year are hidden so a facilitator filling this out in May
-            doesn't see Q1 as an option. Future years show all four. */}
+        {/* Quarter(s) — multi-select. Past quarters in the current
+            year render as disabled-grey buttons (kept for visual
+            balance — four buttons in a row reads better than two or
+            three) so a facilitator filling this out in May sees Q1
+            greyed out next to a clickable Q2/Q3/Q4. */}
         {mode === "quarter" && (
           <Field label="Quarters" required>
             <div className="flex gap-2">
-              {[1, 2, 3, 4]
-                .filter((q) => isQuarterSelectable(year, q))
-                .map((q) => {
-                  const selected = quarters.has(q);
-                  return (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() =>
-                        setQuarters((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(q)) next.delete(q);
-                          else next.add(q);
-                          return next;
-                        })
-                      }
-                      className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                        selected
+              {[1, 2, 3, 4].map((q) => {
+                const selected = quarters.has(q);
+                const selectable = isQuarterSelectable(year, q);
+                return (
+                  <button
+                    key={q}
+                    type="button"
+                    disabled={!selectable}
+                    onClick={() =>
+                      setQuarters((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(q)) next.delete(q);
+                        else next.add(q);
+                        return next;
+                      })
+                    }
+                    title={
+                      !selectable
+                        ? `Q${q} ${year} has already ended`
+                        : undefined
+                    }
+                    className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      !selectable
+                        ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed line-through decoration-gray-300"
+                        : selected
                           ? "bg-indigo-600 text-white border-indigo-600"
                           : "bg-white text-gray-700 border-gray-200 hover:border-indigo-300"
-                      }`}
-                    >
-                      Q{q}
-                    </button>
-                  );
-                })}
+                    }`}
+                  >
+                    Q{q}
+                  </button>
+                );
+              })}
             </div>
             <p className="text-xs text-gray-400 mt-1.5">
               {quarters.size > 0
