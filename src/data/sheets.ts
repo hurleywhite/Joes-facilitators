@@ -7,7 +7,7 @@ import {
   Availability,
   Region,
 } from "@/types/facilitator";
-import { mergeIndustries } from "@/lib/industry-parser";
+import { mergeIndustries, mergePastCompanies } from "@/lib/industry-parser";
 
 /**
  * Country/keyword → Region mapping for auto-deriving region.
@@ -347,14 +347,22 @@ export async function fetchFromGoogleSheet(
               "Loom",
             ])
           ) || undefined,
-        pastCompanies: splitList(
-          getCol(row, [
-            "Past Companies",
-            "Companies",
-            "Past Employers",
-            "Employers",
-            "Worked At",
-          ])
+        // Merge sheet-provided past-companies with names detected in the
+        // bio (KNOWN_COMPANIES dictionary). So a bio that mentions "AWS",
+        // "Pfizer", or "Visa" surfaces those as past-company chips even
+        // when the sheet column is blank — and the same companies feed
+        // into industry tags via mergeIndustries above.
+        pastCompanies: mergePastCompanies(
+          splitList(
+            getCol(row, [
+              "Past Companies",
+              "Companies",
+              "Past Employers",
+              "Employers",
+              "Worked At",
+            ])
+          ),
+          enrichedBio
         ),
         pastRoles: splitList(
           getCol(row, [

@@ -6,7 +6,7 @@ import { Facilitator } from "@/types/facilitator";
 import { resolveCoords } from "@/lib/geocode";
 import { generateBio } from "@/lib/bio-enrich";
 import { fetchLinkedInMetadata } from "@/lib/linkedin-enrich";
-import { mergeIndustries } from "@/lib/industry-parser";
+import { mergeIndustries, mergePastCompanies } from "@/lib/industry-parser";
 import { regionFromCoords } from "@/lib/region-from-coords";
 
 export const dynamic = "force-dynamic";
@@ -60,6 +60,7 @@ async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
       // sheet parser at all), the enriched bio may surface industries that
       // weren't in the sheet column.
       const industryExperience = mergeIndustries(f.industryExperience || [], bio);
+      const pastCompanies = mergePastCompanies(f.pastCompanies || [], bio);
 
       // Region: prefer coords-derived over the country-string derivation
       // baked into sheets.ts. The country derivation drifts when the
@@ -68,7 +69,7 @@ async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
       const coordRegion = regionFromCoords(lat, lng);
       const region = coordRegion || f.region;
 
-      return { ...f, photoUrl, lat, lng, bio, industryExperience, region };
+      return { ...f, photoUrl, lat, lng, bio, industryExperience, pastCompanies, region };
     })
   );
 }
