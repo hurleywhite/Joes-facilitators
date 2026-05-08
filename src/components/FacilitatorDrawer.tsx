@@ -9,6 +9,8 @@ import {
   Briefcase,
   Mail,
   Globe,
+  Calendar,
+  Plane,
 } from "lucide-react";
 import { useEffect } from "react";
 
@@ -170,6 +172,48 @@ export default function FacilitatorDrawer({
             </div>
           )}
 
+          {/* Availability — surfaced near the top because it's the
+              question Joe is most often answering ("can they take this
+              deal?"). Empty when the facilitator hasn't filled the
+              self-service form yet. */}
+          {(f.availableWindows?.length || f.willingToTravel) && (
+            <Section title="Availability" icon={<Calendar className="w-3 h-3" />}>
+              {f.availableWindows && f.availableWindows.length > 0 && (
+                <ul className="space-y-1 mb-2">
+                  {f.availableWindows.map((w, i) => (
+                    <li
+                      key={i}
+                      className="text-sm text-gray-700 inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 border border-green-100 text-green-800 rounded mr-1"
+                    >
+                      {formatWindow(w.start, w.end)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {f.willingToTravel && (
+                <div className="text-xs text-gray-600 inline-flex items-center gap-1">
+                  <Plane className="w-3 h-3" />
+                  Travel:{" "}
+                  <span className="font-medium text-gray-800">
+                    {f.willingToTravel === "Domestic"
+                      ? "Domestic only"
+                      : f.willingToTravel}
+                  </span>
+                </div>
+              )}
+              {f.availabilityNotes && (
+                <div className="text-xs text-gray-500 mt-1.5 italic">
+                  &ldquo;{f.availabilityNotes}&rdquo;
+                </div>
+              )}
+              {f.availabilityUpdatedAt && (
+                <div className="text-[10px] text-gray-400 mt-1.5">
+                  Updated {new Date(f.availabilityUpdatedAt).toLocaleDateString()}
+                </div>
+              )}
+            </Section>
+          )}
+
           {/* Bio */}
           {f.bio && (
             <Section title="About">
@@ -291,6 +335,31 @@ function Section({
       {children}
     </div>
   );
+}
+
+/**
+ * Pretty-print an availability window. Same year → "May 1 – Sep 30".
+ * Cross-year → "Dec 15, 2026 – Jan 10, 2027". Single day → "May 5".
+ */
+function formatWindow(startIso: string, endIso: string): string {
+  const start = new Date(startIso + "T00:00:00Z");
+  const end = new Date(endIso + "T00:00:00Z");
+  const fmt = (d: Date, includeYear: boolean) =>
+    d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: includeYear ? "numeric" : undefined,
+      timeZone: "UTC",
+    });
+  if (startIso === endIso) {
+    return fmt(start, start.getUTCFullYear() !== new Date().getUTCFullYear());
+  }
+  const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
+  if (sameYear) {
+    const includeYear = start.getUTCFullYear() !== new Date().getUTCFullYear();
+    return `${fmt(start, false)} – ${fmt(end, includeYear)}`;
+  }
+  return `${fmt(start, true)} – ${fmt(end, true)}`;
 }
 
 function Tag({

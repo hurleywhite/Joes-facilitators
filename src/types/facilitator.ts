@@ -1,3 +1,19 @@
+/**
+ * One inclusive date range a facilitator is AVAILABLE for. The app
+ * normalizes the three submission modes (rest-of-year, by-quarter,
+ * blocked-dates) into a list of these so a single date-availability
+ * query can be answered the same way regardless of how the
+ * facilitator filled out the form.
+ */
+export interface AvailabilityWindow {
+  /** ISO date YYYY-MM-DD, inclusive */
+  start: string;
+  /** ISO date YYYY-MM-DD, inclusive */
+  end: string;
+}
+
+export type TravelWillingness = "Yes" | "Domestic" | "No" | "";
+
 export type Focus = "Facilitation" | "Tech" | "Both";
 export type ExperienceLevel = "High" | "Medium" | "Low";
 export type EngagementStatus = "Active" | "Completed" | "None";
@@ -76,6 +92,16 @@ export interface Facilitator {
    */
   pastRoles?: string[];
   employmentStatus?: string;
+  /**
+   * Date windows the facilitator marked as available, derived from the
+   * Availability sheet. Empty/undefined means they haven't submitted
+   * the self-service form yet — UI should show "availability not set".
+   */
+  availableWindows?: AvailabilityWindow[];
+  willingToTravel?: TravelWillingness;
+  availabilityNotes?: string;
+  /** Last time the facilitator submitted their availability form. */
+  availabilityUpdatedAt?: string;
   notes?: string;
   engagements: Engagement[];
   currentEngagement: string | null;

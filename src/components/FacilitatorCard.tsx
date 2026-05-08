@@ -1,6 +1,6 @@
 "use client";
 
-import { Facilitator } from "@/types/facilitator";
+import { Facilitator, AvailabilityWindow } from "@/types/facilitator";
 import {
   ExternalLink,
   MapPin,
@@ -10,8 +10,30 @@ import {
   ChevronUp,
   PlayCircle,
   Briefcase,
+  Calendar,
 } from "lucide-react";
 import { useState } from "react";
+
+/**
+ * One-line summary of availability for the card. Picks the next window
+ * starting from today and renders e.g. "thru Dec 31" or "Jul–Sep" or
+ * "Jan 5 – Mar 30, 2027".
+ */
+function summarizeWindows(windows: AvailabilityWindow[]): string {
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = windows
+    .filter((w) => w.end >= today)
+    .sort((a, b) => a.start.localeCompare(b.start));
+  if (upcoming.length === 0) return "history only";
+  const w = upcoming[0];
+  const start = new Date(w.start + "T00:00:00Z");
+  const end = new Date(w.end + "T00:00:00Z");
+  const fmt = (d: Date) =>
+    d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  if (w.start <= today && w.end.endsWith("-12-31")) return "thru year-end";
+  if (w.start <= today) return `thru ${fmt(end)}`;
+  return `${fmt(start)} – ${fmt(end)}`;
+}
 
 function focusBadge(focus: string | undefined) {
   if (!focus) {
@@ -190,6 +212,22 @@ export default function FacilitatorCard({ f }: { f: Facilitator }) {
                 </span>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Availability windows — short summary (first window). Full
+            list lives in the drawer. Only renders if the facilitator
+            has submitted the self-service availability form. */}
+        {f.availableWindows && f.availableWindows.length > 0 && (
+          <div className="mt-2 inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+            <Calendar className="w-3 h-3" />
+            <span className="font-medium">Available</span>
+            <span className="text-emerald-600">
+              {summarizeWindows(f.availableWindows)}
+            </span>
+            {f.willingToTravel === "Yes" && <span className="text-emerald-600">· will travel</span>}
+            {f.willingToTravel === "Domestic" && <span className="text-emerald-600">· domestic travel</span>}
+            {f.willingToTravel === "No" && <span className="text-amber-600">· no travel</span>}
           </div>
         )}
 

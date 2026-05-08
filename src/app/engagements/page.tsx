@@ -305,26 +305,30 @@ function EngagementCard({
 }) {
   const dateRange = formatDateRange(e.startDate, e.endDate);
 
-  // Compose a "sticky" engagement description so the engagement is
-  // identifiable from the chip alone — e.g. "Bahrain · Tamkeen" reads as a
-  // single sticky label even when the engagement title is just the
-  // workshop name.
-  const stickyContext = [e.location, e.client].filter(Boolean).join(" · ");
+  // Title prefers the company / client name (e.g. "AbbVie", "Tamkeen") so the
+  // card identifies the deal at a glance instead of showing the generic
+  // engagement type. The engagement name (e.g. "AI Workshop") drops to a
+  // subtitle when it's distinct from the client.
+  const title = e.client && e.client !== "(unknown)" ? e.client : e.name;
+  const subtitle = e.name && e.name !== title && e.name !== "(untitled)" ? e.name : "";
+  const locationLine = e.location ? e.location : "";
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h3 className="font-semibold text-gray-900 text-sm truncate">
-            {e.name}
+            {title}
           </h3>
-          {stickyContext && (
-            <div className="text-xs font-medium text-indigo-700 mt-0.5">
-              {stickyContext}
+          {subtitle && (
+            <div className="text-xs font-medium text-indigo-700 mt-0.5 truncate">
+              {subtitle}
             </div>
           )}
-          {e.client && stickyContext !== e.client && (
-            <div className="text-xs text-gray-500 mt-0.5">{e.client}</div>
+          {locationLine && (
+            <div className="text-xs text-gray-500 mt-0.5 truncate">
+              {locationLine}
+            </div>
           )}
         </div>
         <StatusBadge status={e.status} />

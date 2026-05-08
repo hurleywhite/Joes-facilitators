@@ -38,6 +38,17 @@
  */
 
 const SPEAKING_DIRECTORY_SHEET = 'Speaking Directory';
+const AVAILABILITY_SHEET = 'Availability';
+const AVAILABILITY_HEADERS = [
+  'Submitted At',
+  'Name',
+  'Mode',
+  'Year',
+  'Quarter',
+  'Blocked Ranges',
+  'Willing To Travel',
+  'Notes',
+];
 
 const APOLLO_PEOPLE_MATCH = 'https://api.apollo.io/api/v1/people/match';
 const EXA_SEARCH          = 'https://api.exa.ai/search';
@@ -61,6 +72,8 @@ function onOpen() {
     .addItem('Fill Region from Lat/Lng',       'fillRegionFromCoords')
     .addItem('Fill Industries from Bio',       'fillIndustriesFromBio')
     .addItem("Strip 'English' from Languages", 'stripEnglishFromLanguages')
+    .addSeparator()
+    .addItem('Set up Availability tab',         'setupAvailabilitySheet')
     .addSeparator()
     .addItem('Install / repair auto-run',      'installEnrichmentTrigger')
     .addItem('Remove auto-run',                'uninstallEnrichmentTrigger')
@@ -1203,6 +1216,103 @@ function stripSubPhDDegrees_(bio) {
     .trim();
 
   return out;
+}
+
+/* ============================================================ */
+/* AVAILABILITY WEB-APP HANDLER                                 */
+/* ============================================================ */
+
+/**
+ * Web-app entry point — receives JSON POSTs from the public
+ * /availability page (proxied through Vercel) and appends a row to the
+ * Availability tab.
+ *
+ * To enable this:
+ *   1. In Apps Script, click Deploy → New deployment → Web app
+ *   2. "Execute as": Me. "Who has access": Anyone.
+ *   3. Copy the resulting /exec URL into Vercel env as
+ *      APPS_SCRIPT_AVAILABILITY_URL.
+ *   4. (Optional) Set a shared secret in Project Settings → Script
+ *      Properties as AVAILABILITY_TOKEN, and the same value in Vercel
+ *      env as APPS_SCRIPT_AVAILABILITY_TOKEN. The proxy forwards it as
+ *      `token` and this handler rejects requests that don't match.
+ *
+ * Run setupAvailabilitySheet() once from the editor to create the
+ * Availability tab with the right headers, or just let doPost create it
+ * on first submission.
+ */
+function doPost(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return jsonResponse_({ error: 'No payload' }, 400);
+    }
+    const payload = JSON.parse(e.postData.contents);
+
+    // Optional shared-secret check
+    const expected = PropertiesService.getScriptProperties().getProperty('AVAILABILITY_TOKEN');
+    if (expected && payload.token !== expected) {
+      return jsonResponse_({ error: 'Unauthorized' }, 401);
+    }
+
+    const sheet = ensureAvailabilitySheet_();
+    const blocked = (payload.blockedRanges || [])
+      .filter(r => r && r.start)
+      .map(r => r.start + ':' + (r.end || r.start))
+      .join('; ');
+
+    sheet.appendRow([
+      payload.submittedAt || new Date().toISOString(),
+      payload.name || '',
+      payload.mode || '',
+      payload.year || '',
+      payload.mode === 'quarter' ? (payload.quarter || '') : '',
+      blocked,
+      payload.willingToTravel || '',
+      payload.notes || '',
+    ]);
+    return jsonResponse_({ ok: true }, 200);
+  } catch (err) {
+    return jsonResponse_({ error: String(err) }, 500);
+  }
+}
+
+/** Browsers occasionally probe the URL with GET — return a small status. */
+function doGet() {
+  return ContentService
+    .createTextOutput(JSON.stringify({ ok: true, hint: 'POST availability submissions here' }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function setupAvailabilitySheet() {
+  ensureAvailabilitySheet_();
+  SpreadsheetApp.getUi().alert(
+    '"Availability" tab is ready.\n\n' +
+    'Now deploy this script as a Web App (Deploy → New deployment → Web app, ' +
+    '"Anyone" access) and paste the /exec URL into Vercel as ' +
+    'APPS_SCRIPT_AVAILABILITY_URL.'
+  );
+}
+
+function ensureAvailabilitySheet_() {
+  const ss = SpreadsheetApp.getActive();
+  let sheet = ss.getSheetByName(AVAILABILITY_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(AVAILABILITY_SHEET);
+    sheet.appendRow(AVAILABILITY_HEADERS);
+    sheet.setFrozenRows(1);
+  } else if (sheet.getLastRow() === 0) {
+    sheet.appendRow(AVAILABILITY_HEADERS);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function jsonResponse_(obj, _code) {
+  // Apps Script Web Apps don't expose HTTP status — they always return
+  // 200 to the caller. The proxy handles error semantics on the JSON body.
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function looksLikeProse_(s) {

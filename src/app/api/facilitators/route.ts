@@ -8,6 +8,7 @@ import { generateBio } from "@/lib/bio-enrich";
 import { fetchLinkedInMetadata } from "@/lib/linkedin-enrich";
 import { mergeIndustries, mergePastCompanies } from "@/lib/industry-parser";
 import { regionFromCoords } from "@/lib/region-from-coords";
+import { fetchAvailability, toAvailabilityCsvUrl } from "@/data/availability";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -18,7 +19,29 @@ export const maxDuration = 30;
  *   - lat/lng: geocode from location
  *   - bio: spreadsheet > LinkedIn og:description > template
  */
+/**
+ * Pulls the latest availability submission per facilitator from the
+ * Availability tab and returns a name → record map. Returns an empty
+ * map if the env var isn't configured or the fetch fails.
+ */
+async function loadAvailabilityMap(): Promise<
+  Map<string, Awaited<ReturnType<typeof fetchAvailability>>[number]>
+> {
+  const url = process.env.GOOGLE_AVAILABILITY_CSV_URL;
+  if (!url) return new Map();
+  try {
+    const records = await fetchAvailability(toAvailabilityCsvUrl(url));
+    const map = new Map<string, (typeof records)[number]>();
+    for (const r of records) map.set(r.name.toLowerCase().trim(), r);
+    return map;
+  } catch (err) {
+    console.error("Availability fetch failed:", err);
+    return new Map();
+  }
+}
+
 async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
+  const availabilityMap = await loadAvailabilityMap();
   return Promise.all(
     facilitators.map(async (f) => {
       // Try LinkedIn metadata first (cached per instance)
@@ -74,7 +97,23 @@ async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
       const coordRegion = regionFromCoords(lat, lng);
       const region = coordRegion || f.region;
 
-      return { ...f, photoUrl, lat, lng, bio, industryExperience, pastCompanies, languages, region };
+      const av = availabilityMap.get(f.name.toLowerCase().trim());
+
+      return {
+        ...f,
+        photoUrl,
+        lat,
+        lng,
+        bio,
+        industryExperience,
+        pastCompanies,
+        languages,
+        region,
+        availableWindows: av?.windows,
+        willingToTravel: av?.willingToTravel,
+        availabilityNotes: av?.notes,
+        availabilityUpdatedAt: av?.submittedAt,
+      };
     })
   );
 }

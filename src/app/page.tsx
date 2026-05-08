@@ -21,6 +21,7 @@ export default function Home() {
   const [availFilter, setAvailFilter] = useState("All");
   const [regionFilter, setRegionFilter] = useState("All");
   const [industryFilter, setIndustryFilter] = useState("All");
+  const [availableOn, setAvailableOn] = useState<string>("");
   const [view, setView] = useState<"cards" | "map">("cards");
 
   const fetchData = useCallback(async () => {
@@ -30,6 +31,17 @@ export default function Home() {
       const res = await fetch(`/api/facilitators?t=${Date.now()}`);
       if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
+      // Sort alphabetically by name — the sheet isn't sorted, so we sort
+      // here so the cards/map/chat results all render in a predictable
+      // order. Uses localeCompare so accented names ("Anja Novković",
+      // "Alejandro") fall into the right slot.
+      if (Array.isArray(data)) {
+        data.sort((a: { name: string }, b: { name: string }) =>
+          (a.name || "").localeCompare(b.name || "", undefined, {
+            sensitivity: "base",
+          })
+        );
+      }
       setFacilitators(data);
     } catch {
       setError("Failed to load facilitator data. Please try again.");
@@ -99,16 +111,22 @@ export default function Home() {
         (f.industryExperience || []).some(
           (i) => i.toLowerCase() === industryFilter.toLowerCase()
         );
+      const matchesDate =
+        !availableOn ||
+        (f.availableWindows?.some(
+          (w) => availableOn >= w.start && availableOn <= w.end
+        ) ?? false);
       return (
         matchesSearch &&
         matchesFocus &&
         matchesExp &&
         matchesAvail &&
         matchesRegion &&
-        matchesIndustry
+        matchesIndustry &&
+        matchesDate
       );
     });
-  }, [facilitators, search, focusFilter, expFilter, availFilter, regionFilter, industryFilter]);
+  }, [facilitators, search, focusFilter, expFilter, availFilter, regionFilter, industryFilter, availableOn]);
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -183,6 +201,33 @@ export default function Home() {
           totalCount={facilitators.length}
           filteredCount={filtered.length}
         />
+
+        {/* Availability date filter — pulls from the self-service form
+            submissions stored in the Availability tab. Only shows
+            facilitators whose declared windows include the picked date. */}
+        <div className="flex items-center gap-2 text-sm bg-white border border-gray-200 rounded-xl p-3">
+          <span className="text-gray-500">Available on:</span>
+          <input
+            type="date"
+            value={availableOn}
+            onChange={(e) => setAvailableOn(e.target.value)}
+            className="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          />
+          {availableOn && (
+            <button
+              onClick={() => setAvailableOn("")}
+              className="text-xs text-gray-400 hover:text-gray-700"
+            >
+              Clear
+            </button>
+          )}
+          <span className="ml-auto text-xs text-gray-400">
+            Pulls from self-served{" "}
+            <a href="/availability" className="text-indigo-600 hover:underline">
+              availability form
+            </a>
+          </span>
+        </div>
 
         {/* Error */}
         {error && (

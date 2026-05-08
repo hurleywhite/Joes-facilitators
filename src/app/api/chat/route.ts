@@ -113,6 +113,11 @@ async function answerWithClaude(
     industries: f.industryExperience,
     pastCompanies: f.pastCompanies || [],
     pastRoles: f.pastRoles || [],
+    // Self-service availability windows (from /availability form). Lets
+    // Claude answer "who's available in October" or "who's free for a
+    // Q3 engagement" via direct date arithmetic on these ranges.
+    availableWindows: f.availableWindows || [],
+    willingToTravel: f.willingToTravel || "unspecified",
     bio: f.bio,
   }));
 
