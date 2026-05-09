@@ -306,7 +306,7 @@ export default function FacilitatorCard({ f }: { f: Facilitator }) {
           {(f.pastCompanies?.length || 0) > 0 && (
             <div>
               <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                Past companies
+                Has worked with
               </h4>
               <div className="flex flex-wrap gap-1">
                 {f.pastCompanies!.map((c) => (

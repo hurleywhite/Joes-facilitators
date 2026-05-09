@@ -33,10 +33,27 @@ type ChatResponse = {
   total: number;
 };
 
+/**
+ * One turn of the prior conversation. Sent from the chat UI so the
+ * model has memory across follow-up questions ("how about around
+ * tech?" only makes sense if the model remembers we were just talking
+ * about APAC exec workshops).
+ */
+type ChatHistoryTurn = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export async function POST(req: Request) {
   try {
-    const body = (await req.json()) as { message?: string };
+    const body = (await req.json()) as {
+      message?: string;
+      history?: ChatHistoryTurn[];
+    };
     const message = (body.message || "").trim();
+    const history = (body.history || []).filter(
+      (t) => t && (t.role === "user" || t.role === "assistant") && t.content
+    );
     if (!message) {
       return NextResponse.json({
         answer: "Ask me something like: 'who's available in Europe with healthcare experience?'",
@@ -49,7 +66,7 @@ export async function POST(req: Request) {
     const pool = await loadPool();
 
     if (process.env.ANTHROPIC_API_KEY) {
-      return NextResponse.json(await answerWithClaude(message, pool));
+      return NextResponse.json(await answerWithClaude(message, pool, history));
     }
     return NextResponse.json(answerWithHeuristic(message, pool));
   } catch (err) {
@@ -96,7 +113,8 @@ async function loadPool(): Promise<Facilitator[]> {
 
 async function answerWithClaude(
   message: string,
-  pool: Facilitator[]
+  pool: Facilitator[],
+  history: ChatHistoryTurn[] = []
 ): Promise<ChatResponse> {
   const apiKey = process.env.ANTHROPIC_API_KEY!;
 
@@ -166,7 +184,7 @@ Rules:
 - If the user says "available" treat anyone "Unavailable" as disqualified. "On Assignment" is allowed only if no Available person fits — and call that out in the summary.
 - Prefer specific over generic: a Casablanca-based facilitator beats a "global" one for a Morocco deal.
 - Industry/expertise can come from explicit "industries" tags OR the bio text. Cite which.
-- Cap matches at 6. If <6 fit cleanly, return fewer.
+- Cap matches at 12. If fewer fit cleanly, return fewer — quality beats padding.
 - Be honest in the summary if no one matches. Don't pad.`;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -182,12 +200,7 @@ Rules:
       system: systemPrompt,
       tools,
       tool_choice: { type: "tool", name: "return_matches" },
-      messages: [
-        {
-          role: "user",
-          content: `Question: ${message}\n\nFacilitator pool (JSON):\n${JSON.stringify(dossier)}`,
-        },
-      ],
+      messages: buildMessages_(message, dossier, history),
     }),
   });
 
@@ -226,6 +239,32 @@ Rules:
     usedClaude: true,
     total: pool.length,
   };
+}
+
+/**
+ * Compose the messages array sent to Claude. We:
+ *   1. Replay prior turns so the model remembers the thread.
+ *   2. Embed the current dossier with the LATEST user question, so
+ *      the model only ever scans one (large) JSON dump per request.
+ *   3. Cap history at the last 8 turns to keep the request small —
+ *      anything older than ~4 exchanges is rarely relevant for "find
+ *      a facilitator" follow-ups.
+ */
+function buildMessages_(
+  message: string,
+  dossier: unknown,
+  history: ChatHistoryTurn[]
+): Array<{ role: "user" | "assistant"; content: string }> {
+  const recent = history.slice(-8);
+  const out: Array<{ role: "user" | "assistant"; content: string }> = [];
+  for (const t of recent) {
+    out.push({ role: t.role, content: t.content });
+  }
+  out.push({
+    role: "user",
+    content: `Question: ${message}\n\nFacilitator pool (JSON):\n${JSON.stringify(dossier)}`,
+  });
+  return out;
 }
 
 /* ------------------------------------------------------------------ */
@@ -350,7 +389,7 @@ function answerWithHeuristic(
 
   scored.sort((a, b) => b.score - a.score);
   const positives = scored.filter((s) => s.score > 0);
-  const top = positives.slice(0, 6);
+  const top = positives.slice(0, 12);
 
   const matches: ChatMatch[] = top.map((s) => ({
     facilitator: s.f,

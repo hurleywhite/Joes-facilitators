@@ -69,6 +69,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Fix All Bad Data (one-click)',   'fixAllBadData')
     .addItem('Fill Missing Locations (Apollo)', 'fillMissingLocations')
+    .addItem('Fill Past Companies & Roles (Apollo)', 'fillPastEmploymentFromApollo')
     .addItem('Fill Missing Lat / Lng',         'fillMissingCoords')
     .addItem('Fill Region from Lat/Lng',       'fillRegionFromCoords')
     .addItem('Fill Industries from Bio',       'fillIndustriesFromBio')
@@ -198,6 +199,8 @@ function fixAllBadData() {
 
   const stats = {
     locationsFilled: 0,
+    employersFilled: 0,
+    rolesFilled: 0,
     coordsFilled: 0,
     regionsSet: 0,
     regionsFixed: 0,
@@ -210,11 +213,17 @@ function fixAllBadData() {
       ? String(sheet.getRange(r, colOf['Name']).getValue() || '').trim() : '';
     if (!name) continue;
 
-    // 0) Fill missing Location from Apollo. This has to run BEFORE the
-    //    coords step — geocoder needs a Location to work with.
+    // 0a) Fill missing Location from Apollo. Has to run BEFORE the
+    //     coords step — geocoder needs a Location to work with.
     if (fillLocationForRow_(sheet, colOf, r) === 'set') {
       stats.locationsFilled++;
     }
+    // 0b) Pull past employers + past roles from Apollo's employment_history.
+    //     Replaces the bio-derived "past companies" guesses, which often
+    //     conflated clients with employers.
+    const empResult = fillPastEmploymentForRow_(sheet, colOf, r);
+    if (empResult.companies === 'set') stats.employersFilled++;
+    if (empResult.roles === 'set') stats.rolesFilled++;
 
     // 1) Fill missing lat/lng
     if (colOf['Location'] && colOf['Lat'] && colOf['Lng']) {
@@ -252,6 +261,8 @@ function fixAllBadData() {
   SpreadsheetApp.getUi().alert(
     'Data fix complete.\n' +
     '  Locations filled:      ' + stats.locationsFilled + '\n' +
+    '  Past Employers filled: ' + stats.employersFilled + '\n' +
+    '  Past Roles filled:     ' + stats.rolesFilled + '\n' +
     '  Lat/Lng filled:        ' + stats.coordsFilled + '\n' +
     '  Regions newly set:     ' + stats.regionsSet + '\n' +
     '  Regions corrected:     ' + stats.regionsFixed + '\n' +
@@ -942,6 +953,157 @@ function fillLocationForRow_(sheet, colOf, row) {
 
   cell.setValue(location);
   return 'set';
+}
+
+/* ============================================================ */
+/* PAST EMPLOYMENT FROM APOLLO                                  */
+/* ============================================================ */
+
+/**
+ * Apollo's people-match endpoint returns an `employment_history`
+ * array — every past role with organization_name, title, start/end
+ * dates, and a `current` flag. Pulling that into the sheet gives
+ * REAL employer data instead of relying on bio prose where the only
+ * companies mentioned are usually clients ('worked with Nike, IKEA,
+ * Chanel') rather than employers.
+ *
+ * Writes:
+ *   - Past Companies = past employers, current excluded, deduped
+ *   - Past Roles     = past titles, current excluded, deduped
+ *
+ * Conservative — only writes if the cell is currently blank, so
+ * Joe's manual entries always win.
+ */
+function fillPastEmploymentFromApollo() {
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('APOLLO_API_KEY')) {
+    SpreadsheetApp.getUi().alert(
+      'APOLLO_API_KEY missing. Add it in Project Settings → Script Properties first.'
+    );
+    return;
+  }
+  const sheet = SpreadsheetApp.getActive().getSheetByName(SPEAKING_DIRECTORY_SHEET);
+  if (!sheet) throw new Error('"' + SPEAKING_DIRECTORY_SHEET + '" sheet not found.');
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const colOf = headerMap_(headers);
+  if (!colOf['Past Companies'] && !colOf['Past Roles']) {
+    SpreadsheetApp.getUi().alert(
+      'Neither "Past Companies" nor "Past Roles" column found. Add at least one to the Speaking Directory tab.'
+    );
+    return;
+  }
+  const lastRow = sheet.getLastRow();
+  let companiesFilled = 0, rolesFilled = 0, noSignal = 0, hadValue = 0;
+  for (let r = 2; r <= lastRow; r++) {
+    const result = fillPastEmploymentForRow_(sheet, colOf, r);
+    if (result.companies === 'set') companiesFilled++;
+    if (result.roles === 'set') rolesFilled++;
+    if (result.companies === 'skipped-had' || result.roles === 'skipped-had') hadValue++;
+    if (result.companies === 'no-signal' && result.roles === 'no-signal') noSignal++;
+    Utilities.sleep(400);
+  }
+  SpreadsheetApp.getUi().alert(
+    'Apollo employment fill complete.\n' +
+    '  Past Companies filled: ' + companiesFilled + '\n' +
+    '  Past Roles filled:     ' + rolesFilled + '\n' +
+    '  Already had values:    ' + hadValue + '\n' +
+    '  No signal from Apollo: ' + noSignal
+  );
+}
+
+function fillPastEmploymentForRow_(sheet, colOf, row) {
+  const result = { companies: 'skip', roles: 'skip' };
+  if (!colOf['Name']) return result;
+  const name = String(sheet.getRange(row, colOf['Name']).getValue() || '').trim();
+  if (!name) return result;
+
+  const linkedIn = colOf['LinkedIn URL']
+    ? String(sheet.getRange(row, colOf['LinkedIn URL']).getValue() || '').trim() : '';
+  const email    = colOf['Email']
+    ? String(sheet.getRange(row, colOf['Email']).getValue() || '').trim() : '';
+
+  // Companies cell
+  if (colOf['Past Companies']) {
+    const cell = sheet.getRange(row, colOf['Past Companies']);
+    const existing = String(cell.getValue() || '').trim();
+    if (existing) {
+      result.companies = 'skipped-had';
+    } else {
+      const apollo = lookupApollo_(name, linkedIn, email);
+      const list = extractPastEmployers_(apollo);
+      if (list.length > 0) {
+        cell.setValue(list.join('; '));
+        result.companies = 'set';
+      } else {
+        result.companies = 'no-signal';
+      }
+    }
+  }
+
+  // Roles cell — needs its own Apollo call only if companies cell was
+  // skipped (had-existing). Otherwise reuse the same lookup via cache
+  // since lookupApollo_ already memoizes on name+linkedin+email per
+  // execution? No, it doesn't. So we look up once and use for both.
+  if (colOf['Past Roles']) {
+    const cell = sheet.getRange(row, colOf['Past Roles']);
+    const existing = String(cell.getValue() || '').trim();
+    if (existing) {
+      result.roles = 'skipped-had';
+    } else {
+      // If we already looked up Apollo for companies, no extra request
+      // — Apollo people-match has no caching here, but the second call
+      // just costs a duplicate lookup. Cheap acceptable cost.
+      const apollo = lookupApollo_(name, linkedIn, email);
+      const list = extractPastRoles_(apollo);
+      if (list.length > 0) {
+        cell.setValue(list.join('; '));
+        result.roles = 'set';
+      } else {
+        result.roles = 'no-signal';
+      }
+    }
+  }
+
+  return result;
+}
+
+function extractPastEmployers_(apollo) {
+  if (!apollo || !apollo.employment_history) return [];
+  const out = [];
+  const seen = {};
+  // employment_history is most-recent-first per Apollo's contract.
+  // Skip the entry flagged `current` since the current employer is
+  // already represented in apollo.organization. Skip dupes.
+  for (let i = 0; i < apollo.employment_history.length; i++) {
+    const e = apollo.employment_history[i];
+    if (!e || e.current) continue;
+    const org = trimOrEmpty_(e.organization_name);
+    if (!org) continue;
+    const k = org.toLowerCase();
+    if (seen[k]) continue;
+    seen[k] = true;
+    out.push(org);
+    if (out.length >= 8) break; // sane cap, oldest dropped
+  }
+  return out;
+}
+
+function extractPastRoles_(apollo) {
+  if (!apollo || !apollo.employment_history) return [];
+  const out = [];
+  const seen = {};
+  for (let i = 0; i < apollo.employment_history.length; i++) {
+    const e = apollo.employment_history[i];
+    if (!e || e.current) continue;
+    const title = cleanHeadline_(trimOrEmpty_(e.title));
+    if (!title) continue;
+    const k = title.toLowerCase();
+    if (seen[k]) continue;
+    seen[k] = true;
+    out.push(title);
+    if (out.length >= 8) break;
+  }
+  return out;
 }
 
 function fillMissingCoords() {

@@ -255,7 +255,7 @@ export default function FacilitatorDrawer({
           )}
 
           {(f.pastCompanies?.length || 0) > 0 && (
-            <Section title="Past companies">
+            <Section title="Has worked with">
               <div className="flex flex-wrap gap-1">
                 {f.pastCompanies!.map((c) => (
                   <span

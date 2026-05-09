@@ -57,10 +57,17 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
+      // Send the prior turns so the model has memory across follow-ups.
+      // Keep only role + content — the matches array is huge and not
+      // useful as conversation context.
+      const priorHistory = turns.map((t) => ({
+        role: t.role,
+        content: t.content,
+      }));
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, history: priorHistory }),
       });
       if (!res.ok) throw new Error(`API ${res.status}`);
       const data = (await res.json()) as {
@@ -304,7 +311,7 @@ function ResultCard({ match }: { match: ChatMatch }) {
           )}
           {(f.pastCompanies?.length || 0) > 0 && (
             <div className="text-[11px] text-gray-500 mt-0.5 truncate">
-              <span className="text-gray-400">Past:</span>{" "}
+              <span className="text-gray-400">Has worked with:</span>{" "}
               {f.pastCompanies!.slice(0, 4).join(" · ")}
             </div>
           )}
