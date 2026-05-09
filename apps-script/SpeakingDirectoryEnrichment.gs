@@ -68,6 +68,7 @@ function onOpen() {
     .addItem('Re-Enrich ALL Bios (overwrite)', 'reEnrichAllBios')
     .addSeparator()
     .addItem('Fix All Bad Data (one-click)',   'fixAllBadData')
+    .addItem('Fill Missing Locations (Apollo)', 'fillMissingLocations')
     .addItem('Fill Missing Lat / Lng',         'fillMissingCoords')
     .addItem('Fill Region from Lat/Lng',       'fillRegionFromCoords')
     .addItem('Fill Industries from Bio',       'fillIndustriesFromBio')
@@ -196,6 +197,7 @@ function fixAllBadData() {
   const lastRow = sheet.getLastRow();
 
   const stats = {
+    locationsFilled: 0,
     coordsFilled: 0,
     regionsSet: 0,
     regionsFixed: 0,
@@ -207,6 +209,12 @@ function fixAllBadData() {
     const name = colOf['Name']
       ? String(sheet.getRange(r, colOf['Name']).getValue() || '').trim() : '';
     if (!name) continue;
+
+    // 0) Fill missing Location from Apollo. This has to run BEFORE the
+    //    coords step — geocoder needs a Location to work with.
+    if (fillLocationForRow_(sheet, colOf, r) === 'set') {
+      stats.locationsFilled++;
+    }
 
     // 1) Fill missing lat/lng
     if (colOf['Location'] && colOf['Lat'] && colOf['Lng']) {
@@ -243,6 +251,7 @@ function fixAllBadData() {
 
   SpreadsheetApp.getUi().alert(
     'Data fix complete.\n' +
+    '  Locations filled:      ' + stats.locationsFilled + '\n' +
     '  Lat/Lng filled:        ' + stats.coordsFilled + '\n' +
     '  Regions newly set:     ' + stats.regionsSet + '\n' +
     '  Regions corrected:     ' + stats.regionsFixed + '\n' +
@@ -417,8 +426,16 @@ function enrichSpeakingDirRow_(sheet, colOf, row, force) {
     ? String(sheet.getRange(row, colOf['Location']).getValue() || '').trim() : '';
   if (!name) return false;
 
-  // Always-on: cheap geocoding + region + skill backfill.
-  fillCoordsForRow_(sheet, colOf, row, location);
+  // Always-on: pull location from Apollo if blank, then geocode, then
+  // derive region. This chain lets a row added with just a name +
+  // LinkedIn URL fully self-populate location/coords/region without
+  // a separate menu run.
+  fillLocationForRow_(sheet, colOf, row);
+  // Re-read in case fillLocationForRow_ just wrote it.
+  const filledLocation = colOf['Location']
+    ? String(sheet.getRange(row, colOf['Location']).getValue() || '').trim()
+    : location;
+  fillCoordsForRow_(sheet, colOf, row, filledLocation);
   fillRegionForRow_(sheet, colOf, row);
 
   const data = enrichPerson_(name, linkedIn, email, location);
@@ -833,6 +850,99 @@ function pickBioSentences_(text, name, maxCount) {
 /* ============================================================ */
 /* GEOCODING + REGION                                           */
 /* ============================================================ */
+
+/* ============================================================ */
+/* LOCATION FROM APOLLO                                         */
+/* ============================================================ */
+
+/**
+ * For every row where Location is blank but a LinkedIn URL or email
+ * is present, ask Apollo for the person and fill in "City, Country"
+ * (or "City, State" for US rows). Apollo's people-match endpoint
+ * already returns city/state/country fields — we just weren't using
+ * them. Once Location lands the geocoder + region pipeline take
+ * over and fill lat/lng + region without further prompting.
+ *
+ * Conservative — never overwrites an existing Location value, even
+ * if Apollo's looks more complete. Joe's manual entries win.
+ */
+function fillMissingLocations() {
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('APOLLO_API_KEY')) {
+    SpreadsheetApp.getUi().alert(
+      'APOLLO_API_KEY missing. Add it in Project Settings → Script ' +
+      'Properties first.'
+    );
+    return;
+  }
+  const sheet = SpreadsheetApp.getActive().getSheetByName(SPEAKING_DIRECTORY_SHEET);
+  if (!sheet) throw new Error('"' + SPEAKING_DIRECTORY_SHEET + '" sheet not found.');
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const colOf = headerMap_(headers);
+  if (!colOf['Location']) throw new Error('"Location" column not found.');
+  if (!colOf['Name']) throw new Error('"Name" column not found.');
+
+  const lastRow = sheet.getLastRow();
+  let filled = 0, skippedHadLocation = 0, skippedNoSignal = 0;
+  for (let r = 2; r <= lastRow; r++) {
+    const result = fillLocationForRow_(sheet, colOf, r);
+    if (result === 'set') filled++;
+    else if (result === 'skipped-had') skippedHadLocation++;
+    else if (result === 'no-signal') skippedNoSignal++;
+    Utilities.sleep(400);  // gentle pacing on Apollo
+  }
+  SpreadsheetApp.getUi().alert(
+    'Locations filled.\n' +
+    '  Newly set:        ' + filled + '\n' +
+    '  Already had:      ' + skippedHadLocation + '\n' +
+    '  No usable signal: ' + skippedNoSignal
+  );
+}
+
+/**
+ * Returns 'set' | 'skipped-had' | 'no-signal' | 'no-name'.
+ * Skipped-had means Location was already populated. No-signal means
+ * Apollo didn't return city/state/country for this person.
+ */
+function fillLocationForRow_(sheet, colOf, row) {
+  if (!colOf['Location'] || !colOf['Name']) return 'no-name';
+  const name = String(sheet.getRange(row, colOf['Name']).getValue() || '').trim();
+  if (!name) return 'no-name';
+
+  const cell = sheet.getRange(row, colOf['Location']);
+  const existing = String(cell.getValue() || '').trim();
+  if (existing) return 'skipped-had';
+
+  const linkedIn = colOf['LinkedIn URL']
+    ? String(sheet.getRange(row, colOf['LinkedIn URL']).getValue() || '').trim() : '';
+  const email    = colOf['Email']
+    ? String(sheet.getRange(row, colOf['Email']).getValue() || '').trim() : '';
+
+  const apollo = lookupApollo_(name, linkedIn, email);
+  if (!apollo) return 'no-signal';
+
+  const city    = trimOrEmpty_(apollo.city);
+  const state   = trimOrEmpty_(apollo.state);
+  const country = trimOrEmpty_(apollo.country);
+  const formatted = trimOrEmpty_(apollo.present_raw_address);
+
+  let location = '';
+  if (city && state && (country === 'United States' || country === 'USA' || !country)) {
+    location = city + ', ' + state;
+  } else if (city && country) {
+    location = city + ', ' + country;
+  } else if (city) {
+    location = city;
+  } else if (formatted) {
+    location = formatted;
+  } else if (country) {
+    location = country;
+  }
+  if (!location) return 'no-signal';
+
+  cell.setValue(location);
+  return 'set';
+}
 
 function fillMissingCoords() {
   const sheet = SpreadsheetApp.getActive().getSheetByName(SPEAKING_DIRECTORY_SHEET);
