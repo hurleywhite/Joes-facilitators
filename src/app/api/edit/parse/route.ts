@@ -41,9 +41,9 @@ type EditAction =
   | { kind: "add_facilitator_note"; facilitator: string; note: string }
   | { kind: "update_facilitator_field"; facilitator: string; field: string; value: string };
 
+type Step = { action: EditAction; preview: string };
 type ParseResponse = {
-  action: EditAction | null;
-  preview: string;
+  steps: Step[];
   needsClarification?: string;
 };
 
@@ -192,10 +192,12 @@ export async function POST(req: Request) {
   ];
 
   const systemPrompt =
-    "You convert short operator notes into one structured edit on the ArcticMind facilitator pool spreadsheet.\n\n" +
+    "You convert operator notes into structured edits on the ArcticMind facilitator pool spreadsheet.\n\n" +
     "Rules:\n" +
-    "- Pick EXACTLY ONE tool. Never call multiple. Multi-step edits aren't supported yet.\n" +
-    "- If the note is ambiguous (e.g. 'mark the workshop as done' but multiple workshops exist) call `needs_clarification` with a short question.\n" +
+    "- A note may contain ONE OR MORE separate edits. Emit one tool call per edit, in the order the user mentioned them.\n" +
+    "- For example, 'Mark Amazon completed and add Sarah to Tamkeen' should produce TWO tool calls (update_engagement_status, add_facilitator_to_engagement).\n" +
+    "- 'Add Ryan, Sarah, and Mike to the Tamkeen engagement' should produce THREE add_facilitator_to_engagement calls.\n" +
+    "- If the note is ambiguous (e.g. 'mark the workshop as done' but multiple workshops exist) call `needs_clarification` with a short question — do not also emit other tool calls in that case.\n" +
     "- Only invent values for fields the user mentioned. Leave optional fields blank.\n" +
     "- Status values must be one of: Active, Upcoming, Completed, Cancelled, On Hold.\n" +
     "- Dates: convert relative phrases ('next Tuesday', 'June') to YYYY-MM-DD when reasonable, otherwise leave blank.\n" +
@@ -227,30 +229,36 @@ export async function POST(req: Request) {
   }
 
   const data = await res.json();
-  const toolUse = (data.content || []).find(
+  const toolUses = (data.content || []).filter(
     (b: { type: string }) => b.type === "tool_use"
-  ) as { type: "tool_use"; name: string; input: Record<string, unknown> } | undefined;
+  ) as Array<{ type: "tool_use"; name: string; input: Record<string, unknown> }>;
 
-  if (!toolUse) {
+  if (toolUses.length === 0) {
     return NextResponse.json({
-      action: null,
-      preview: "",
+      steps: [],
       needsClarification:
         "I couldn't pick an action for that note. Try again with a clearer instruction.",
     } satisfies ParseResponse);
   }
 
-  if (toolUse.name === "needs_clarification") {
+  // If the model called needs_clarification anywhere, surface that and
+  // ignore other tool calls — we don't want to half-apply an edit
+  // when one of the steps was ambiguous.
+  const clarification = toolUses.find((t) => t.name === "needs_clarification");
+  if (clarification) {
     return NextResponse.json({
-      action: null,
-      preview: "",
-      needsClarification: String(toolUse.input.question || "Could you clarify?"),
+      steps: [],
+      needsClarification: String(
+        clarification.input.question || "Could you clarify?"
+      ),
     } satisfies ParseResponse);
   }
 
-  const action = { kind: toolUse.name, ...toolUse.input } as EditAction;
-  const preview = previewLine(action);
-  return NextResponse.json({ action, preview } satisfies ParseResponse);
+  const steps: Step[] = toolUses.map((t) => {
+    const action = { kind: t.name, ...t.input } as EditAction;
+    return { action, preview: previewLine(action) };
+  });
+  return NextResponse.json({ steps } satisfies ParseResponse);
 }
 
 function previewLine(a: EditAction): string {

@@ -14,17 +14,29 @@ export const maxDuration = 30;
  * APPS_SCRIPT_AVAILABILITY_TOKEN keeps random POSTs out.
  */
 
+type Action = { kind: string; [k: string]: unknown };
+
 export async function POST(req: Request) {
-  let body: { action?: { kind?: string; [k: string]: unknown } };
+  let body: { action?: Action; actions?: Action[] };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  const action = body.action;
-  if (!action || typeof action.kind !== "string") {
-    return NextResponse.json({ error: "Missing action.kind" }, { status: 400 });
+
+  // Accept either the legacy single-action shape OR a batch of actions.
+  const actions: Action[] = body.actions
+    ? body.actions
+    : body.action
+      ? [body.action]
+      : [];
+  if (actions.length === 0) {
+    return NextResponse.json(
+      { error: "Missing actions" },
+      { status: 400 }
+    );
   }
+
   const allowed = new Set([
     "add_engagement",
     "add_facilitator_to_engagement",
@@ -32,11 +44,13 @@ export async function POST(req: Request) {
     "add_facilitator_note",
     "update_facilitator_field",
   ]);
-  if (!allowed.has(action.kind)) {
-    return NextResponse.json(
-      { error: `Unknown action kind: ${action.kind}` },
-      { status: 400 }
-    );
+  for (const a of actions) {
+    if (!a || typeof a.kind !== "string" || !allowed.has(a.kind)) {
+      return NextResponse.json(
+        { error: `Unknown action kind: ${a?.kind}` },
+        { status: 400 }
+      );
+    }
   }
 
   const url = process.env.APPS_SCRIPT_AVAILABILITY_URL;
@@ -51,11 +65,11 @@ export async function POST(req: Request) {
     );
   }
 
-  // Wrap the action so the Apps Script doPost routes it to the edit
-  // dispatcher (vs. the existing availability-submission flow).
+  // Single round-trip — Apps Script doPost handles kind=edit_batch by
+  // looping applyEdit_ over edits[] and returning per-action results.
   const payload = {
-    kind: "edit",
-    edit: action,
+    kind: "edit_batch",
+    edits: actions,
     submittedAt: new Date().toISOString(),
     token: process.env.APPS_SCRIPT_AVAILABILITY_TOKEN || "",
   };

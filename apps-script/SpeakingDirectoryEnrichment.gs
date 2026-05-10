@@ -1768,10 +1768,17 @@ function doPost(e) {
     }
 
     // Dispatch by kind. The default (no kind / kind=availability) keeps
-    // the existing facilitator-form flow intact. kind=edit handles the
-    // /edit chatbot's structured actions.
+    // the existing facilitator-form flow intact. kind=edit handles a
+    // single structured edit; kind=edit_batch handles a list (multi-step
+    // notes from the /edit chatbot).
     if (payload.kind === 'edit') {
       return jsonResponse_(applyEdit_(payload.edit || {}), 200);
+    }
+    if (payload.kind === 'edit_batch') {
+      const edits = Array.isArray(payload.edits) ? payload.edits : [];
+      const results = edits.map(function (e) { return applyEdit_(e); });
+      const allOk = results.every(function (r) { return r && r.ok; });
+      return jsonResponse_({ ok: allOk, results: results }, 200);
     }
 
     const sheet = ensureAvailabilitySheet_();

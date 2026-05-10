@@ -39,23 +39,25 @@ type EditAction = {
   [k: string]: unknown;
 };
 
+type Step = { action: EditAction; preview: string };
+
 type Turn =
   | { role: "user"; content: string }
   | { role: "assistant"; content: string }
   | {
       role: "preview";
-      action: EditAction;
-      preview: string;
+      steps: Step[];
       status: "pending" | "applying" | "applied" | "cancelled" | "failed";
+      perStepResults?: Array<{ ok: boolean; message: string }>;
       message?: string;
     };
 
 const SUGGESTIONS = [
   "Add Ryan McManus to the Tamkeen engagement",
-  "Mark the Amazon engagement as completed",
+  "Mark the Amazon engagement as completed and add Sarah Smith to it",
   "Add a new engagement: 'AI Strategy Sprint' for Goldman Sachs in NYC, starting 2026-07-01",
-  "Set Allie K. Miller's availability to On Assignment",
-  'Add a note to Andy Hagerman: "Prefers in-person workshops, half-day max"',
+  "Set Allie K. Miller's availability to On Assignment, and add a note: 'Out of office until June 15'",
+  "Add Ryan, Charis, and Allie to the Tamkeen engagement",
 ];
 
 export default function EditPage() {
@@ -87,7 +89,8 @@ export default function EditPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Parse failed (${res.status})`);
 
-      if (!data.action) {
+      const steps: Step[] = data.steps || [];
+      if (steps.length === 0) {
         setTurns((prev) => [
           ...prev,
           {
@@ -98,12 +101,7 @@ export default function EditPage() {
       } else {
         setTurns((prev) => [
           ...prev,
-          {
-            role: "preview",
-            action: data.action,
-            preview: data.preview,
-            status: "pending",
-          },
+          { role: "preview", steps, status: "pending" },
         ]);
       }
     } catch (err) {
@@ -132,18 +130,33 @@ export default function EditPage() {
       const res = await fetch("/api/edit/apply", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: turn.action }),
+        body: JSON.stringify({
+          actions: turn.steps.map((s) => s.action),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Apply failed (${res.status})`);
-      const message =
-        data.result && typeof data.result === "object" && "message" in data.result
-          ? String((data.result as { message: string }).message)
-          : "Done.";
+      // Apps Script returns { ok, results: [{ok, message}] } for batch.
+      const result = (data.result || {}) as {
+        ok?: boolean;
+        results?: Array<{ ok: boolean; message: string }>;
+        message?: string;
+      };
+      const perStepResults = result.results || [];
+      const allOk =
+        result.ok ?? perStepResults.every((r) => r && r.ok);
+      const message = perStepResults.length
+        ? `${perStepResults.filter((r) => r.ok).length}/${perStepResults.length} applied`
+        : (result.message || "Done.");
       setTurns((prev) =>
         prev.map((t, i) =>
           i === idx && t.role === "preview"
-            ? { ...t, status: "applied", message }
+            ? {
+                ...t,
+                status: allOk ? "applied" : "failed",
+                perStepResults,
+                message,
+              }
             : t
         )
       );
@@ -307,6 +320,7 @@ function PreviewCard({
   onCancel: () => void;
 }) {
   const status = turn.status;
+  const isMulti = turn.steps.length > 1;
   return (
     <div
       className={`border rounded-xl p-4 ${
@@ -330,20 +344,47 @@ function PreviewCard({
           <Sparkles className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
         )}
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-0.5">
+          <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
             {status === "applied"
               ? "Applied"
               : status === "failed"
-                ? "Failed"
+                ? `Failed${turn.message ? ` — ${turn.message}` : ""}`
                 : status === "cancelled"
                   ? "Cancelled"
                   : status === "applying"
                     ? "Applying…"
-                    : "Confirm change"}
+                    : `Confirm ${turn.steps.length} change${isMulti ? "s" : ""}`}
           </div>
-          <div className="text-sm text-gray-800">{turn.preview}</div>
-          {turn.message && (
-            <div className="text-xs text-gray-500 mt-1">{turn.message}</div>
+          <ol
+            className={`space-y-1.5 text-sm text-gray-800 ${
+              isMulti ? "list-decimal list-inside" : ""
+            }`}
+          >
+            {turn.steps.map((step, i) => {
+              const result = turn.perStepResults?.[i];
+              return (
+                <li key={i} className="leading-snug">
+                  <span>{step.preview}</span>
+                  {result && (
+                    <span
+                      className={`ml-2 text-[11px] inline-flex items-center gap-0.5 ${
+                        result.ok ? "text-green-700" : "text-red-700"
+                      }`}
+                    >
+                      {result.ok ? (
+                        <Check className="w-3 h-3" />
+                      ) : (
+                        <AlertCircle className="w-3 h-3" />
+                      )}
+                      {result.message}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+          {turn.message && !turn.perStepResults && (
+            <div className="text-xs text-gray-500 mt-1.5">{turn.message}</div>
           )}
         </div>
       </div>
@@ -360,7 +401,7 @@ function PreviewCard({
             onClick={onApply}
             className="text-xs font-medium bg-indigo-600 text-white rounded-lg px-3 py-1.5 hover:bg-indigo-700"
           >
-            Confirm &amp; apply
+            {isMulti ? `Confirm all ${turn.steps.length}` : "Confirm & apply"}
           </button>
         </div>
       )}
