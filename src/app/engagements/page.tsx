@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { EngagementRecord, EngagementRecordStatus, Facilitator } from "@/types/facilitator";
 import FacilitatorDrawer from "@/components/FacilitatorDrawer";
+import EngagementDrawer from "@/components/EngagementDrawer";
 
 export default function EngagementsPage() {
   const [engagements, setEngagements] = useState<EngagementRecord[]>([]);
@@ -22,6 +23,8 @@ export default function EngagementsPage() {
   const [source, setSource] = useState<string>("");
   const [selectedFacilitator, setSelectedFacilitator] =
     useState<Facilitator | null>(null);
+  const [selectedEngagement, setSelectedEngagement] =
+    useState<EngagementRecord | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -186,6 +189,7 @@ export default function EngagementsPage() {
                 emptyMessage="No active engagements."
                 facilitatorsByName={facilitatorsByName}
                 onPickFacilitator={setSelectedFacilitator}
+                onPickEngagement={setSelectedEngagement}
               />
               <Section
                 title="Upcoming"
@@ -195,6 +199,7 @@ export default function EngagementsPage() {
                 emptyMessage="No upcoming engagements."
                 facilitatorsByName={facilitatorsByName}
                 onPickFacilitator={setSelectedFacilitator}
+                onPickEngagement={setSelectedEngagement}
               />
             </div>
 
@@ -208,6 +213,7 @@ export default function EngagementsPage() {
                 emptyMessage=""
                 facilitatorsByName={facilitatorsByName}
                 onPickFacilitator={setSelectedFacilitator}
+                onPickEngagement={setSelectedEngagement}
               />
             )}
 
@@ -221,6 +227,7 @@ export default function EngagementsPage() {
                 emptyMessage=""
                 facilitatorsByName={facilitatorsByName}
                 onPickFacilitator={setSelectedFacilitator}
+                onPickEngagement={setSelectedEngagement}
               />
             )}
           </>
@@ -230,6 +237,16 @@ export default function EngagementsPage() {
       <FacilitatorDrawer
         facilitator={selectedFacilitator}
         onClose={() => setSelectedFacilitator(null)}
+      />
+      <EngagementDrawer
+        engagement={selectedEngagement}
+        facilitatorsByName={facilitatorsByName}
+        onClose={() => setSelectedEngagement(null)}
+        onPickFacilitator={(f) => {
+          // Layered drawer: opening a facilitator profile from the
+          // engagement drawer keeps the engagement context behind it.
+          setSelectedFacilitator(f);
+        }}
       />
     </main>
   );
@@ -245,6 +262,7 @@ function Section({
   emptyMessage,
   facilitatorsByName,
   onPickFacilitator,
+  onPickEngagement,
 }: {
   title: string;
   subtitle: string;
@@ -253,6 +271,7 @@ function Section({
   emptyMessage: string;
   facilitatorsByName: Map<string, Facilitator>;
   onPickFacilitator: (f: Facilitator) => void;
+  onPickEngagement: (e: EngagementRecord) => void;
 }) {
   const accentClasses: Record<string, string> = {
     green: "border-l-green-500 bg-green-50/40",
@@ -286,6 +305,7 @@ function Section({
               e={e}
               facilitatorsByName={facilitatorsByName}
               onPickFacilitator={onPickFacilitator}
+              onPickEngagement={onPickEngagement}
             />
           ))}
         </div>
@@ -298,10 +318,12 @@ function EngagementCard({
   e,
   facilitatorsByName,
   onPickFacilitator,
+  onPickEngagement,
 }: {
   e: EngagementRecord;
   facilitatorsByName: Map<string, Facilitator>;
   onPickFacilitator: (f: Facilitator) => void;
+  onPickEngagement: (e: EngagementRecord) => void;
 }) {
   const dateRange = formatDateRange(e.startDate, e.endDate);
 
@@ -316,8 +338,15 @@ function EngagementCard({
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-gray-900 text-sm truncate">
+        {/* Title block doubles as the open-drawer trigger. Stays as a
+            button so screenreaders see it as an action; the chips
+            below still capture their own clicks. */}
+        <button
+          type="button"
+          onClick={() => onPickEngagement(e)}
+          className="min-w-0 flex-1 text-left group"
+        >
+          <h3 className="font-semibold text-gray-900 text-sm truncate group-hover:text-indigo-700 transition-colors">
             {title}
           </h3>
           {subtitle && (
@@ -330,7 +359,7 @@ function EngagementCard({
               {locationLine}
             </div>
           )}
-        </div>
+        </button>
         <StatusBadge status={e.status} />
       </div>
 
@@ -399,6 +428,16 @@ function EngagementCard({
           {e.valueUSD}
         </div>
       )}
+
+      {/* View-team affordance — visible at the bottom so the click
+          target is discoverable. Title click does the same thing. */}
+      <button
+        type="button"
+        onClick={() => onPickEngagement(e)}
+        className="mt-3 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+      >
+        View team &amp; details →
+      </button>
     </div>
   );
 }

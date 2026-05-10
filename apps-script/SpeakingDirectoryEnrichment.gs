@@ -1767,6 +1767,13 @@ function doPost(e) {
       return jsonResponse_({ error: 'Unauthorized' }, 401);
     }
 
+    // Dispatch by kind. The default (no kind / kind=availability) keeps
+    // the existing facilitator-form flow intact. kind=edit handles the
+    // /edit chatbot's structured actions.
+    if (payload.kind === 'edit') {
+      return jsonResponse_(applyEdit_(payload.edit || {}), 200);
+    }
+
     const sheet = ensureAvailabilitySheet_();
     const blocked = (payload.blockedRanges || [])
       .filter(r => r && r.start)
@@ -1832,6 +1839,200 @@ function ensureAvailabilitySheet_() {
     sheet.setFrozenRows(1);
   }
   return sheet;
+}
+
+/* ============================================================ */
+/* EDIT DISPATCHER                                              */
+/* ============================================================ */
+
+/**
+ * Apply one structured edit from the /edit chatbot. Always returns
+ * { ok, message } so the UI can show the result.
+ *
+ * Lookup is case-insensitive on names. For engagements we match on
+ * either the Engagement column or the Client column. Fuzzy matching
+ * is intentionally minimal — if the chatbot's engagement string
+ * doesn't match anything, we return ok=false rather than picking the
+ * wrong row.
+ */
+function applyEdit_(edit) {
+  if (!edit || !edit.kind) return { ok: false, message: 'Missing edit.kind' };
+  try {
+    switch (edit.kind) {
+      case 'add_engagement':
+        return applyAddEngagement_(edit);
+      case 'add_facilitator_to_engagement':
+        return applyAddFacilitatorToEngagement_(edit);
+      case 'update_engagement_status':
+        return applyUpdateEngagementStatus_(edit);
+      case 'add_facilitator_note':
+        return applyAddFacilitatorNote_(edit);
+      case 'update_facilitator_field':
+        return applyUpdateFacilitatorField_(edit);
+      default:
+        return { ok: false, message: 'Unknown edit kind: ' + edit.kind };
+    }
+  } catch (err) {
+    return { ok: false, message: 'Edit failed: ' + err };
+  }
+}
+
+function getEngagementsSheet_() {
+  // Live sheet the engagements page reads is whatever's pointed at by
+  // GOOGLE_ENGAGEMENTS_CSV_URL. The script writes by sheet name, so
+  // try a few common names.
+  const ss = SpreadsheetApp.getActive();
+  return ss.getSheetByName('Ongoing Engagements')
+    || ss.getSheetByName('Engagements')
+    || ss.getSheetByName('Engagement History')
+    || null;
+}
+
+function applyAddEngagement_(edit) {
+  const sheet = getEngagementsSheet_();
+  if (!sheet) return { ok: false, message: 'Engagements sheet not found.' };
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const colOf = headerMap_(headers);
+
+  // Build a row that fills any of the columns the live sheet has.
+  const row = headers.map((h) => {
+    if (!h) return '';
+    const lh = String(h).toLowerCase().trim();
+    if (lh === 'engagement' || lh === 'name' || lh === 'engagement name' || lh === 'workshop') return edit.name || '';
+    if (lh === 'client' || lh === 'organization' || lh === 'org' || lh === 'company') return edit.client || edit.name || '';
+    if (lh === 'status' || lh === 'stage') return edit.status || 'Upcoming';
+    if (lh === 'location' || lh === 'where' || lh === 'venue') return edit.location || '';
+    if (lh === 'city') {
+      const parts = (edit.location || '').split(',').map(function (s) { return s.trim(); });
+      return parts[0] || '';
+    }
+    if (lh === 'country') {
+      const parts = (edit.location || '').split(',').map(function (s) { return s.trim(); });
+      return parts.length > 1 ? parts[parts.length - 1] : '';
+    }
+    if (lh === 'start date' || lh === 'date' || lh === 'start' || lh === 'from') return edit.startDate || '';
+    if (lh === 'end date' || lh === 'end' || lh === 'to' || lh === 'through') return edit.endDate || '';
+    if (lh === 'type' || lh === 'engagement type' || lh === 'format' || lh === 'focus') return edit.type || '';
+    if (lh === 'facilitators' || lh === 'facilitator' || lh === 'facilitator(s)' || lh === 'team' || lh === 'speaker' || lh === 'speakers') {
+      return Array.isArray(edit.facilitators) ? edit.facilitators.join('; ') : '';
+    }
+    if (lh === 'notes' || lh === 'internal notes' || lh === 'notes/comments') return edit.notes || '';
+    return '';
+  });
+  sheet.appendRow(row);
+  return {
+    ok: true,
+    message:
+      'Added engagement "' + (edit.name || '') + '"' +
+      (edit.client && edit.client !== edit.name ? ' for ' + edit.client : '') + '.',
+  };
+}
+
+function findEngagementRow_(sheet, query) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const colOf = headerMap_(headers);
+  const nameCol = colOf['Engagement'] || colOf['Engagement Name'] || colOf['Workshop'] || colOf['Name'] || 1;
+  const clientCol = colOf['Client'] || colOf['Organization'] || colOf['Org'] || colOf['Company'] || nameCol;
+  const lastRow = sheet.getLastRow();
+  const q = String(query || '').toLowerCase().trim();
+  if (!q) return null;
+  for (let r = 2; r <= lastRow; r++) {
+    const name = String(sheet.getRange(r, nameCol).getValue() || '').toLowerCase().trim();
+    const client = String(sheet.getRange(r, clientCol).getValue() || '').toLowerCase().trim();
+    if (name === q || client === q || (name && q.indexOf(name) !== -1) || (client && q.indexOf(client) !== -1)) {
+      return { row: r, headers: headers, colOf: colOf };
+    }
+  }
+  return null;
+}
+
+function applyAddFacilitatorToEngagement_(edit) {
+  const sheet = getEngagementsSheet_();
+  if (!sheet) return { ok: false, message: 'Engagements sheet not found.' };
+  const found = findEngagementRow_(sheet, edit.engagement);
+  if (!found) {
+    return { ok: false, message: 'No engagement matched "' + (edit.engagement || '') + '".' };
+  }
+  const facCol =
+    found.colOf['Facilitators'] || found.colOf['Facilitator'] ||
+    found.colOf['Facilitator(s)'] || found.colOf['Team'] ||
+    found.colOf['Speaker'] || found.colOf['Speakers'];
+  if (!facCol) return { ok: false, message: 'Engagements sheet has no Facilitators column.' };
+
+  const cell = sheet.getRange(found.row, facCol);
+  const existing = String(cell.getValue() || '').trim();
+  const list = existing ? existing.split(/\s*[;,|]\s*/).filter(Boolean) : [];
+  const target = String(edit.facilitator || '').trim();
+  if (!target) return { ok: false, message: 'No facilitator name provided.' };
+  if (list.some(function (n) { return n.toLowerCase() === target.toLowerCase(); })) {
+    return { ok: true, message: target + ' is already on this engagement.' };
+  }
+  list.push(target);
+  cell.setValue(list.join('; '));
+  return { ok: true, message: 'Added ' + target + ' to "' + (edit.engagement || '') + '".' };
+}
+
+function applyUpdateEngagementStatus_(edit) {
+  const sheet = getEngagementsSheet_();
+  if (!sheet) return { ok: false, message: 'Engagements sheet not found.' };
+  const found = findEngagementRow_(sheet, edit.engagement);
+  if (!found) {
+    return { ok: false, message: 'No engagement matched "' + (edit.engagement || '') + '".' };
+  }
+  const statusCol = found.colOf['Status'] || found.colOf['Stage'];
+  if (!statusCol) return { ok: false, message: 'Engagements sheet has no Status column.' };
+  sheet.getRange(found.row, statusCol).setValue(edit.status || '');
+  return {
+    ok: true,
+    message: 'Set "' + (edit.engagement || '') + '" status to ' + (edit.status || '') + '.',
+  };
+}
+
+function findFacilitatorRow_(query) {
+  const sheet = SpreadsheetApp.getActive().getSheetByName(SPEAKING_DIRECTORY_SHEET);
+  if (!sheet) return null;
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const colOf = headerMap_(headers);
+  if (!colOf['Name']) return null;
+  const lastRow = sheet.getLastRow();
+  const q = String(query || '').toLowerCase().trim();
+  if (!q) return null;
+  for (let r = 2; r <= lastRow; r++) {
+    const name = String(sheet.getRange(r, colOf['Name']).getValue() || '').toLowerCase().trim();
+    if (!name) continue;
+    if (name === q || (q.indexOf(name) !== -1) || (name.indexOf(q) !== -1)) {
+      return { sheet: sheet, row: r, colOf: colOf };
+    }
+  }
+  return null;
+}
+
+function applyAddFacilitatorNote_(edit) {
+  const found = findFacilitatorRow_(edit.facilitator);
+  if (!found) return { ok: false, message: 'No facilitator matched "' + (edit.facilitator || '') + '".' };
+  const noteCol = found.colOf['Notes'] || found.colOf['Internal Notes'];
+  if (!noteCol) return { ok: false, message: 'Speaking Directory has no Notes column.' };
+  const cell = found.sheet.getRange(found.row, noteCol);
+  const existing = String(cell.getValue() || '').trim();
+  const stamp = new Date().toISOString().slice(0, 10);
+  const newNote = '[' + stamp + '] ' + (edit.note || '').trim();
+  cell.setValue(existing ? existing + '\n' + newNote : newNote);
+  return { ok: true, message: 'Note appended to ' + (edit.facilitator || '') + '.' };
+}
+
+function applyUpdateFacilitatorField_(edit) {
+  const found = findFacilitatorRow_(edit.facilitator);
+  if (!found) return { ok: false, message: 'No facilitator matched "' + (edit.facilitator || '') + '".' };
+  const field = String(edit.field || '').trim();
+  const col = found.colOf[field];
+  if (!col) {
+    return { ok: false, message: 'No "' + field + '" column in the Speaking Directory.' };
+  }
+  found.sheet.getRange(found.row, col).setValue(edit.value || '');
+  return {
+    ok: true,
+    message: 'Set ' + (edit.facilitator || '') + "'s " + field + ' to "' + (edit.value || '') + '".',
+  };
 }
 
 function jsonResponse_(obj, _code) {

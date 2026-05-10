@@ -5,7 +5,7 @@ import { Facilitator } from "@/types/facilitator";
 import FacilitatorCard from "@/components/FacilitatorCard";
 import FilterBar from "@/components/FilterBar";
 import StatsBar from "@/components/StatsBar";
-import { RefreshCw, Briefcase, MessageSquare, Calendar, Copy, Check, Link2 } from "lucide-react";
+import { RefreshCw, Briefcase, MessageSquare, Calendar, Check, Link2, Notebook } from "lucide-react";
 import Link from "next/link";
 import FacilitatorDrawer from "@/components/FacilitatorDrawer";
 
@@ -182,6 +182,14 @@ export default function Home() {
             >
               <MessageSquare className="w-4 h-4" />
               Ask
+            </Link>
+            <Link
+              href="/edit"
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
+              title="Update the spreadsheet with plain-English notes"
+            >
+              <Notebook className="w-4 h-4" />
+              Notes
             </Link>
             <Link
               href="/engagements"
