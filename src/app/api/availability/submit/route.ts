@@ -126,6 +126,39 @@ export async function POST(req: Request) {
         { status: 502 }
       );
     }
+    // Apps Script web apps always return HTTP 200 even when the script
+    // itself raised an error — the real status lives in the JSON body.
+    // Parse it and surface error/unauthorized responses so they don't
+    // silently masquerade as success.
+    try {
+      const data = JSON.parse(text);
+      if (data && typeof data === "object") {
+        if (data.error) {
+          return NextResponse.json(
+            { error: `Apps Script error: ${data.error}` },
+            { status: 502 }
+          );
+        }
+        if (data.ok === false) {
+          return NextResponse.json(
+            { error: `Apps Script reported failure: ${text.slice(0, 200)}` },
+            { status: 502 }
+          );
+        }
+      }
+    } catch {
+      // Body wasn't JSON — Apps Script returned HTML (often a login page
+      // when the deployment is set to anything other than "Anyone"
+      // access). Treat as misconfigured.
+      return NextResponse.json(
+        {
+          error:
+            "Apps Script returned non-JSON (likely a sign-in page). " +
+            "Re-deploy the web app with 'Who has access: Anyone'.",
+        },
+        { status: 502 }
+      );
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(
