@@ -7,7 +7,7 @@ import {
   Availability,
   Region,
 } from "@/types/facilitator";
-import { mergeIndustries, mergePastCompanies } from "@/lib/industry-parser";
+import { mergeIndustries } from "@/lib/industry-parser";
 
 /**
  * Country/keyword → Region mapping for auto-deriving region.
@@ -352,22 +352,20 @@ export async function fetchFromGoogleSheet(
               "Loom",
             ])
           ) || undefined,
-        // Merge sheet-provided past-companies with names detected in the
-        // bio (KNOWN_COMPANIES dictionary). So a bio that mentions "AWS",
-        // "Pfizer", or "Visa" surfaces those as past-company chips even
-        // when the sheet column is blank — and the same companies feed
-        // into industry tags via mergeIndustries above.
-        pastCompanies: mergePastCompanies(
-          splitList(
-            getCol(row, [
-              "Past Companies",
-              "Companies",
-              "Past Employers",
-              "Employers",
-              "Worked At",
-            ])
-          ),
-          enrichedBio
+        // Past Companies = sheet column ONLY. Bio-prose company mentions
+        // are mostly clients, not employers (Erik Rodin's bio names
+        // Chanel/IKEA/Nike — those are agency clients, not where he
+        // worked). The Apps Script fills this column from Apollo's
+        // structured employment_history. Industry tags still benefit
+        // from bio-mention detection above via mergeIndustries.
+        pastCompanies: splitList(
+          getCol(row, [
+            "Past Companies",
+            "Companies",
+            "Past Employers",
+            "Employers",
+            "Worked At",
+          ])
         ),
         pastRoles: splitList(
           getCol(row, [

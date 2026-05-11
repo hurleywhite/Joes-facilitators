@@ -6,7 +6,7 @@ import { Facilitator } from "@/types/facilitator";
 import { resolveCoords } from "@/lib/geocode";
 import { generateBio } from "@/lib/bio-enrich";
 import { fetchLinkedInMetadata } from "@/lib/linkedin-enrich";
-import { mergeIndustries, mergePastCompanies } from "@/lib/industry-parser";
+import { mergeIndustries } from "@/lib/industry-parser";
 import { regionFromCoords } from "@/lib/region-from-coords";
 import { fetchAvailability, toAvailabilityCsvUrl } from "@/data/availability";
 
@@ -83,7 +83,15 @@ async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
       // sheet parser at all), the enriched bio may surface industries that
       // weren't in the sheet column.
       const industryExperience = mergeIndustries(f.industryExperience || [], bio);
-      const pastCompanies = mergePastCompanies(f.pastCompanies || [], bio);
+      // PAST COMPANIES intentionally uses ONLY the sheet column (filled
+      // by the Apps Script via Apollo's structured employment_history).
+      // Bio-prose mentions of company names are mostly clients ("Erik
+      // delivered for Chanel, IKEA, Nike"), not employers — mixing them
+      // in created the "Has worked with" chip row that conflated client
+      // engagements with actual employment. Apollo's employment_history
+      // is the source of truth for past employers; clients live in the
+      // bio prose where the reader can see the context.
+      const pastCompanies = f.pastCompanies || [];
       // Defensive English strip — also covers the dummy-facilitators
       // fallback path which still hardcodes ["English"] on every entry.
       const languages = (f.languages || []).filter(

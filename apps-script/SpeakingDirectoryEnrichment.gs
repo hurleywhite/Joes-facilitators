@@ -532,6 +532,34 @@ function bioQualityIssues_(bio, name) {
   // Pipe-heavy LinkedIn-headline pattern (3+ pipes)
   if ((t.match(/\|/g) || []).length >= 3) issues.push('headline-only (pipes)');
 
+  // Em-dash / bullet headline chains (3+ in one bio). LinkedIn headlines
+  // increasingly use em-dashes or "•" middle dots instead of pipes —
+  // e.g. "Gita Gupte — Fractional Executive — Strategic Planning •
+  // GTM • AI Adoption". Same problem, different separator.
+  const emDashCount = (t.match(/ — | – /g) || []).length;
+  const bulletCount = (t.match(/ • | · /g) || []).length;
+  if (emDashCount + bulletCount >= 3) {
+    issues.push('headline-only (em-dash/bullet chain)');
+  }
+
+  // Embedded postal address ("located at 163 Amsterdam Avenue ... 10023").
+  // Apollo's address fields occasionally leak in via Haiku and the
+  // address stripper should have caught it — this is the QC backstop.
+  if (/\b\d{1,5}\s+[A-Z][A-Za-z'.\-]+(?:\s+(?:Avenue|Ave|Street|St|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr))\b/.test(t)) {
+    issues.push('contains postal address');
+  }
+  if (/\b\d{5}(?:-\d{4})?\b/.test(t) && /[A-Z]{2}\b/.test(t)) {
+    // 5-digit zip + 2-letter state token nearby — very likely an address
+    issues.push('contains postal address (zip+state)');
+  }
+
+  // Trailing degree credential after a separator (— MIT Sloan MBA,
+  // • Harvard MPA, | Bachelor's in X). stripHeadlineFormat_ should
+  // have removed these — QC fires only as a backstop.
+  if (/(?:—|–|•|·|\|)\s*[A-Z][^—–•·|]*?\b(MBA|MPA|MPH|MA|MS|BA|BS|EMBA|MFA|LLM|Bachelor|Master|certificate)\b\.?\s*$/i.test(t)) {
+    issues.push('trailing sub-PhD credential');
+  }
+
   // Multiple emoji-ish bullet markers (✨ ⚡ 🚀 etc) we've seen survive
   if (/[⚡✨💡💖💼🌟⭐🚀🌍🤍❤️💜]/.test(t)) issues.push('decorative symbols');
 
@@ -597,7 +625,9 @@ function enrichPerson_(name, linkedInUrl, email, location) {
     if (haiku && haiku.status === 'none') bioSource = '';
   }
 
+  bio = stripStreetAddresses_(bio);
   bio = stripSubPhDDegrees_(bio);
+  bio = stripHeadlineFormat_(bio);
   bio = bio.replace(/\s+/g, ' ').trim();
   if (bio.length > 600) bio = bio.slice(0, 597).replace(/\s+\S*$/, '') + '...';
   if (!bio) return null;
@@ -1755,6 +1785,72 @@ function cleanHeadline_(s) {
  * This runs after Haiku composes the bio, so even when the model
  * ignores the prompt rule and slips a degree in, it gets stripped.
  */
+/**
+ * Strip street addresses from bios. Apollo sometimes returns a person's
+ * home/work address in `present_raw_address` or similar, and Haiku
+ * has been observed copying that into the bio ("located at the address
+ * 163 Amsterdam Avenue New York, NY, 10023").
+ *
+ * Removes:
+ *   - "located at the address ..." clauses
+ *   - "[Name] located at ..." phrases
+ *   - Standalone US-style street-number + street + state + zip patterns
+ *   - Anything that looks like a postal address embedded inline
+ */
+function stripStreetAddresses_(bio) {
+  if (!bio) return bio;
+  return bio
+    // "located at the address 163 Amsterdam Avenue New York, Ny, 10023."
+    .replace(/\b(?:located\s+at(?:\s+the\s+address)?|address[ed]*\s+at)\s+[^.!?]*?\d[^.!?]*?\b\d{4,5}\b[^.!?]*?[.!?]/gi, '')
+    // standalone "123 Main Street ... 10023" patterns that survived
+    .replace(/\b\d{1,5}\s+[A-Z][A-Za-z'.\-]+(?:\s+(?:Avenue|Ave|Street|St|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Place|Pl|Way|Square|Sq|Highway|Hwy))\b[^.!?]*?\b\d{4,5}\b[,.]?/gi, '')
+    // "Address: ..."
+    .replace(/\bAddress:\s+[^.!?]+[.!?]/gi, '')
+    .replace(/\s+,/g, ',')
+    .replace(/\s+\./g, '.')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Catch LinkedIn-headline-style bios that survived the QC. Pattern:
+ * the bio is dominated by chain-of-credentials separated by em-dashes,
+ * pipes, bullets, or middle-dots and ends with a degree marker like
+ * "— MIT Sloan MBA" or "• Harvard MPA". These read as resumes, not
+ * bios. We strip the trailing degree-credential clause and, if the
+ * remainder is still pure separator-chain, drop everything after the
+ * first em-dash so the bio reverts to "Name — first role." form.
+ */
+function stripHeadlineFormat_(bio) {
+  if (!bio) return bio;
+  // Trailing "— MIT Sloan MBA" / "• Harvard MPA" / "| Bachelor's in X"
+  // patterns (degree appears AT THE END after a separator). The MBA
+  // case was the recurring failure — sub-PhD stripper only caught
+  // sentence-leading credentials, not trailing ones.
+  const subPhdToken =
+    /(?:double major|bachelor['’]?s?(?:\s+degree)?|master['’]?s?(?:\s+degree)?|\bMBA\b|\bMA\b|\bMS\b|\bM\.?Sc\b|\bM\.?A\b|\bM\.?S\b|\bMPA\b|\bMPH\b|\bLLM\b|\bBA\b|\bBS\b|\bB\.?A\b|\bB\.?S\b|\bcertificate(?:s)?\s+in\b)/i;
+  let out = bio;
+  // Repeatedly strip trailing "— ... MBA" / "• ... MS" / "| ... certificate"
+  // chunks until no more match. Bounded loop just to be safe.
+  for (let i = 0; i < 4; i++) {
+    const trimmed = out.trim();
+    const lastSep = Math.max(
+      trimmed.lastIndexOf(' — '),
+      trimmed.lastIndexOf(' – '),
+      trimmed.lastIndexOf(' • '),
+      trimmed.lastIndexOf(' · '),
+      trimmed.lastIndexOf(' | ')
+    );
+    if (lastSep < 0) break;
+    const tail = trimmed.slice(lastSep).trim();
+    if (!subPhdToken.test(tail)) break;
+    out = trimmed.slice(0, lastSep).trim();
+    // Re-add a period if we just stripped the last sentence-ending punctuation
+    if (out && !/[.!?]$/.test(out)) out += '.';
+  }
+  return out;
+}
+
 function stripSubPhDDegrees_(bio) {
   if (!bio) return bio;
 
