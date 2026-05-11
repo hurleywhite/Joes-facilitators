@@ -5,7 +5,7 @@ import { Facilitator } from "@/types/facilitator";
 import FacilitatorCard from "@/components/FacilitatorCard";
 import FilterBar from "@/components/FilterBar";
 import StatsBar from "@/components/StatsBar";
-import { RefreshCw, Briefcase, MessageSquare, Calendar, Check, Link2, Notebook } from "lucide-react";
+import { RefreshCw, Briefcase, MessageSquare, Calendar as CalendarIcon, Check, Link2, Notebook } from "lucide-react";
 import Link from "next/link";
 import FacilitatorDrawer from "@/components/FacilitatorDrawer";
 
@@ -241,27 +241,30 @@ export default function Home() {
           filteredCount={filtered.length}
         />
 
-        {/* Availability date filter — pulls from the self-service form
-            submissions stored in the Availability tab. Only shows
-            facilitators whose declared windows include the picked date. */}
-        <div className="flex items-center gap-2 text-sm bg-white border border-gray-200 rounded-xl p-3">
-          <span className="text-gray-500">Available on:</span>
+        {/* Availability date filter — pulls from the Availability tab
+            submissions. Only shows facilitators whose declared windows
+            include the picked date. */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm bg-white border border-gray-200 rounded-xl px-4 py-3">
+          <label className="flex items-center gap-2 text-gray-600 font-medium">
+            <CalendarIcon className="w-4 h-4 text-indigo-600" />
+            Filter by date available:
+          </label>
           <input
             type="date"
             value={availableOn}
             onChange={(e) => setAvailableOn(e.target.value)}
-            className="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 text-gray-700"
           />
           {availableOn && (
             <button
               onClick={() => setAvailableOn("")}
-              className="text-xs text-gray-400 hover:text-gray-700"
+              className="text-xs text-gray-500 hover:text-gray-800 underline-offset-2 hover:underline"
             >
               Clear
             </button>
           )}
-          <span className="ml-auto text-xs text-gray-400">
-            Pulls from self-served{" "}
+          <span className="sm:ml-auto text-xs text-gray-400">
+            Pulls from the self-served{" "}
             <a href="/availability" className="text-indigo-600 hover:underline">
               availability form
             </a>
