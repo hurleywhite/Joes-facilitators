@@ -675,6 +675,15 @@ function synthesizeWithClaude_(name, location, apollo, exa) {
     if (apollo.headline)                                  lines.push('APOLLO HEADLINE: ' + apollo.headline);
     if (apollo.title)                                     lines.push('APOLLO TITLE: ' + apollo.title);
     if (apollo.organization && apollo.organization.name)  lines.push('APOLLO ORGANIZATION: ' + apollo.organization.name);
+    // Past employers — Apollo's structured employment_history. Surfaced
+    // so Haiku can name notable previous companies ('Previously at
+    // Warner Music...') in the bio instead of dropping them. The script
+    // only shows the top 4 most-recent past entries to keep the prompt
+    // tight; Haiku is told to mention 1-3 *notable* ones, not all.
+    const pastEmployers = extractPastEmployers_(apollo).slice(0, 4);
+    if (pastEmployers.length > 0) {
+      lines.push('APOLLO PAST EMPLOYERS (most recent first, structured): ' + pastEmployers.join('; '));
+    }
   }
   if (exa && exa.text) {
     lines.push('');
@@ -695,7 +704,7 @@ function synthesizeWithClaude_(name, location, apollo, exa) {
     'GROUNDING RULE — every factual claim must trace to input text:\n' +
     '- Every job title, organization, book title, client name, credential, ' +
     'years-of-experience number, and "since YYYY" date you write MUST appear ' +
-    'verbatim in either APOLLO HEADLINE/TITLE/ORGANIZATION or in the SOURCE PAGE text.\n' +
+    'verbatim in either APOLLO HEADLINE/TITLE/ORGANIZATION, APOLLO PAST EMPLOYERS, or the SOURCE PAGE text.\n' +
     "- Do NOT infer client lists. If the source doesn't say 'clients including X, Y, Z', do not write that.\n" +
     "- Do NOT infer book authorship. If 'author of [book]' is not in the source, do not write it.\n" +
     "- Do NOT infer 'over N years of experience' unless that exact number is in the source.\n" +
@@ -725,6 +734,7 @@ function synthesizeWithClaude_(name, location, apollo, exa) {
     '- If APOLLO HEADLINE is in ALL CAPS, render it in normal Title Case.\n' +
     "- If a sentence in SOURCE PAGE is in first person ('I love designing...'), rewrite it in third person using the name.\n" +
     '- Lead with their current role and area of focus. You may add one concrete WORK credential, client, or organization ONLY if it appears verbatim in the inputs. Otherwise stop after the role/focus sentence.\n' +
+    '- PAST EMPLOYERS ARE IMPORTANT. When APOLLO PAST EMPLOYERS lists 1-3 well-known organizations (Warner Music, Microsoft, Pfizer, Goldman Sachs, etc.), name them explicitly — phrasing like "Previously at X and Y" or "with prior experience at X" works. Pick the most recognizable 1-3, not all. Skip generic-name entries you can\'t identify ("Smith Consulting LLC") rather than padding the bio.\n' +
     '- WORK EXPERIENCE ONLY. Do NOT mention any academic degree below a PhD: ' +
     "no Bachelor's, no Master's, no MA, no MS, no MBA, no BA, no BSc, no double major, no certificates, no diplomas, no 'graduated from X', no 'earned a degree at X', no 'student of X'. Skip these entirely. " +
     'You MAY mention a PhD or doctorate (e.g. "holds a PhD in Economics") if directly relevant. ' +
