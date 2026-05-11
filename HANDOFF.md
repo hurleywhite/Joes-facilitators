@@ -1,4 +1,6 @@
 # Facilitator Pool App — Handoff Doc
+<!-- redeploy trigger: 2026-05-11 — pick up new APPS_SCRIPT_AVAILABILITY_URL env var -->
+
 
 A Next.js 16 app on Vercel that visualizes ArcticMind's global pool of
 facilitators. Data lives in a Google Sheet ("Pool Data") with several tabs;
