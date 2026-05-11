@@ -652,11 +652,83 @@ function lookupApollo_(name, linkedInUrl, email) {
       return null;
     }
     const json = JSON.parse(resp.getContentText());
-    return json && json.person ? json.person : null;
+    const person = json && json.person ? json.person : null;
+    if (!person) return null;
+    // Verify the returned person is actually who the row is about.
+    // Apollo will silently return the closest match it has when the
+    // LinkedIn URL it was given doesn't exist in its database — for a
+    // row with a 1-character last name like 'Neel G' + a slug like
+    // 'neelganu', that often surfaces an unrelated 'Neel Arya'.
+    if (!apolloMatchesInput_(person, name, linkedInUrl)) {
+      const got = trimOrEmpty_(person.name) ||
+        (trimOrEmpty_(person.first_name) + ' ' + trimOrEmpty_(person.last_name)).trim();
+      console.log(
+        'Apollo: rejecting mismatch for "' + name + '" (linkedIn=' + linkedInUrl + ') — got "' + got + '"'
+      );
+      return null;
+    }
+    return person;
   } catch (err) {
     console.log('Apollo error: ' + err);
     return null;
   }
+}
+
+/**
+ * Confirm Apollo returned the right person before we treat their data
+ * as authoritative for this row.
+ *
+ * Logic:
+ *   - If we passed Apollo a LinkedIn URL, the result must align with
+ *     that slug. Either the returned person's own linkedin_url matches,
+ *     OR the returned person's last name appears inside the slug
+ *     ('miller' inside 'alliekmiller' → match; 'arya' inside
+ *     'neelganu' → reject).
+ *   - If we didn't pass a LinkedIn URL, fall back to a name check:
+ *     Apollo's first name must align with input's first name, and
+ *     when both last names are present (>= 2 chars), one must start
+ *     with the other.
+ */
+function apolloMatchesInput_(person, inputName, inputLinkedIn) {
+  const apolloFirst = (person.first_name || '').toLowerCase().replace(/[^a-z]/g, '');
+  const apolloLast  = (person.last_name  || '').toLowerCase().replace(/[^a-z]/g, '');
+  const inputSlug   = canonLinkedInSlug_(inputLinkedIn);
+  const apolloSlug  = canonLinkedInSlug_(person.linkedin_url);
+
+  // Case A: we passed Apollo a LinkedIn URL.
+  if (inputSlug) {
+    if (apolloSlug && inputSlug === apolloSlug) return true;
+    if (apolloLast && inputSlug.indexOf(apolloLast) !== -1) return true;
+    // Apollo didn't tell us a slug AND its last name doesn't appear in
+    // the input slug — almost certainly a different person.
+    if (!apolloLast) return true; // can't verify, allow
+    return false;
+  }
+
+  // Case B: no LinkedIn URL — verify by name.
+  const inputParts = String(inputName || '').split(/\s+/).filter(Boolean);
+  const inputFirst = (inputParts[0] || '').toLowerCase().replace(/[^a-z]/g, '');
+  const inputLast  = inputParts.slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+  if (!inputFirst) return true;
+  if (apolloFirst &&
+      !apolloFirst.startsWith(inputFirst) &&
+      !inputFirst.startsWith(apolloFirst)) {
+    return false;
+  }
+  if (inputLast.length >= 2 && apolloLast) {
+    if (!apolloLast.startsWith(inputLast) && !inputLast.startsWith(apolloLast)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Lowercase the slug portion of a LinkedIn URL with non-alnum stripped. */
+function canonLinkedInSlug_(url) {
+  if (!url) return '';
+  const m = String(url).match(/linkedin\.com\/in\/([^\/\?]+)/i);
+  if (!m) return '';
+  return m[1].toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 /* ============================================================ */
@@ -821,13 +893,35 @@ function lookupExa_(name, linkedInUrl, apollo) {
     }
     const json = JSON.parse(resp.getContentText());
     if (!json || !json.results || !json.results.length) return null;
-    const first = name.split(/\s+/)[0];
+    const parts = name.split(/\s+/);
+    const first = parts[0] || '';
+    const last  = parts.slice(1).join(' ');
+    const inputSlug = canonLinkedInSlug_(linkedInUrl);
+
+    // What we'll require to appear in the matched source text. When the
+    // row's last name is too short to be discriminating (1 char like 'G',
+    // or empty), fall back to a tokenized version of the LinkedIn slug
+    // ('neelganu' → ['neel', 'ganu']) so the source page has to mention
+    // something specific to THIS person, not just any 'Neel'.
+    let requiredAnchors;
+    if (last.length >= 2) {
+      requiredAnchors = [first.toLowerCase(), last.toLowerCase()];
+    } else if (inputSlug && inputSlug.length > first.length) {
+      requiredAnchors = [
+        first.toLowerCase(),
+        inputSlug.slice(first.length).toLowerCase(),  // 'ganu' from 'neelganu'
+      ].filter((s) => s.length >= 3);
+    } else {
+      requiredAnchors = [first.toLowerCase()];
+    }
+
     for (let i = 0; i < json.results.length; i++) {
       const r = json.results[i];
       const cleaned = cleanProseText_(r.text || '');
       if (!cleaned) continue;
       const tl = cleaned.toLowerCase();
-      if (tl.indexOf(name.toLowerCase()) === -1 && tl.indexOf(first.toLowerCase()) === -1) continue;
+      const ok = requiredAnchors.every(function (a) { return tl.indexOf(a) !== -1; });
+      if (!ok) continue;
       const snippet = pickBioSentences_(cleaned, name, 2);
       return { url: r.url, text: cleaned.slice(0, 1500), snippet: snippet };
     }
