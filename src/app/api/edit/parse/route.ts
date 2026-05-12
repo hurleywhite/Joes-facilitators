@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { callToolModel, hasLLM } from "@/lib/llm";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -62,12 +63,11 @@ export async function POST(req: Request) {
     );
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  if (!hasLLM()) {
     return NextResponse.json(
       {
         error:
-          "ANTHROPIC_API_KEY missing. Add it to Vercel env to enable the edit chatbot.",
+          "No LLM provider configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY in Vercel env.",
       },
       { status: 500 }
     );
@@ -203,35 +203,24 @@ export async function POST(req: Request) {
     "- Dates: convert relative phrases ('next Tuesday', 'June') to YYYY-MM-DD when reasonable, otherwise leave blank.\n" +
     "- Facilitator and engagement names should be returned as the user wrote them — the apply route does the fuzzy match against the sheet.";
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-5-20250929",
-      max_tokens: 800,
+  let llm;
+  try {
+    llm = await callToolModel({
       system: systemPrompt,
-      tools,
-      tool_choice: { type: "any" },
       messages: [{ role: "user", content: note }],
-    }),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
+      tools,
+      toolChoice: "any",
+      allowParallel: true, // multi-step notes emit multiple tool calls
+      maxTokens: 800,
+    });
+  } catch (err) {
     return NextResponse.json(
-      { error: `Claude API ${res.status}: ${errText.slice(0, 200)}` },
+      { error: err instanceof Error ? err.message : "LLM call failed" },
       { status: 502 }
     );
   }
 
-  const data = await res.json();
-  const toolUses = (data.content || []).filter(
-    (b: { type: string }) => b.type === "tool_use"
-  ) as Array<{ type: "tool_use"; name: string; input: Record<string, unknown> }>;
+  const toolUses = llm.toolCalls;
 
   if (toolUses.length === 0) {
     return NextResponse.json({
@@ -254,10 +243,12 @@ export async function POST(req: Request) {
     } satisfies ParseResponse);
   }
 
-  const steps: Step[] = toolUses.map((t) => {
-    const action = { kind: t.name, ...t.input } as EditAction;
-    return { action, preview: previewLine(action) };
-  });
+  const steps: Step[] = toolUses
+    .filter((t) => t.name !== "needs_clarification")
+    .map((t) => {
+      const action = { kind: t.name, ...t.input } as EditAction;
+      return { action, preview: previewLine(action) };
+    });
   return NextResponse.json({ steps } satisfies ParseResponse);
 }
 

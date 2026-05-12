@@ -3,6 +3,7 @@ import { Facilitator } from "@/types/facilitator";
 import { fetchFromGoogleSheet, toGoogleSheetCsvUrl } from "@/data/sheets";
 import { dummyFacilitators } from "@/data/dummy-facilitators";
 import { mergeIndustries } from "@/lib/industry-parser";
+import { callToolModel, hasLLM } from "@/lib/llm";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -65,8 +66,8 @@ export async function POST(req: Request) {
 
     const pool = await loadPool();
 
-    if (process.env.ANTHROPIC_API_KEY) {
-      return NextResponse.json(await answerWithClaude(message, pool, history));
+    if (hasLLM()) {
+      return NextResponse.json(await answerWithLLM(message, pool, history));
     }
     return NextResponse.json(answerWithHeuristic(message, pool));
   } catch (err) {
@@ -108,17 +109,15 @@ async function loadPool(): Promise<Facilitator[]> {
 }
 
 /* ------------------------------------------------------------------ */
-/* Claude path                                                         */
+/* LLM path (OpenAI or Anthropic via lib/llm helper)                   */
 /* ------------------------------------------------------------------ */
 
-async function answerWithClaude(
+async function answerWithLLM(
   message: string,
   pool: Facilitator[],
   history: ChatHistoryTurn[] = []
 ): Promise<ChatResponse> {
-  const apiKey = process.env.ANTHROPIC_API_KEY!;
-
-  // Compact dossier — Claude doesn't need every field.
+  // Compact dossier — the model doesn't need every field.
   const dossier = pool.map((f) => ({
     id: f.id,
     name: f.name,
@@ -187,36 +186,16 @@ Rules:
 - Cap matches at 12. If fewer fit cleanly, return fewer — quality beats padding.
 - Be honest in the summary if no one matches. Don't pad.`;
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-5-20250929",
-      max_tokens: 2000,
-      system: systemPrompt,
-      tools,
-      tool_choice: { type: "tool", name: "return_matches" },
-      messages: buildMessages_(message, dossier, history),
-    }),
+  const llm = await callToolModel({
+    system: systemPrompt,
+    messages: buildMessages_(message, dossier, history),
+    tools,
+    toolChoice: "return_matches",
+    maxTokens: 2000,
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Claude API ${res.status}: ${errText}`);
-  }
-
-  const data = await res.json();
-  const toolUse = (data.content || []).find(
-    (b: { type: string }) => b.type === "tool_use"
-  ) as
-    | { type: "tool_use"; input: { summary: string; matches: { id: string; reason: string }[] } }
-    | undefined;
-
-  if (!toolUse) {
+  const toolCall = llm.toolCalls.find((c) => c.name === "return_matches");
+  if (!toolCall) {
     return {
       answer:
         "I didn't get a structured answer back from the model. Try rephrasing the question.",
@@ -226,15 +205,19 @@ Rules:
     };
   }
 
+  const input = toolCall.input as {
+    summary?: string;
+    matches?: { id: string; reason: string }[];
+  };
   const byId = new Map(pool.map((f) => [f.id, f]));
   const matches: ChatMatch[] = [];
-  for (const m of toolUse.input.matches || []) {
+  for (const m of input.matches || []) {
     const facilitator = byId.get(m.id);
     if (facilitator) matches.push({ facilitator, reason: m.reason });
   }
 
   return {
-    answer: toolUse.input.summary || "Here's who I found.",
+    answer: input.summary || "Here's who I found.",
     matches,
     usedClaude: true,
     total: pool.length,
