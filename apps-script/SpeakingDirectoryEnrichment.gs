@@ -532,14 +532,48 @@ function bioQualityIssues_(bio, name) {
   // Pipe-heavy LinkedIn-headline pattern (3+ pipes)
   if ((t.match(/\|/g) || []).length >= 3) issues.push('headline-only (pipes)');
 
-  // Em-dash / bullet headline chains (3+ in one bio). LinkedIn headlines
-  // increasingly use em-dashes or "•" middle dots instead of pipes —
-  // e.g. "Gita Gupte — Fractional Executive — Strategic Planning •
-  // GTM • AI Adoption". Same problem, different separator.
+  // Em-dash / bullet headline chains (2+ in one bio). LinkedIn headlines
+  // use em-dashes or "•" middle dots — e.g. "Gita Gupte — Fractional
+  // Executive — Strategic Planning • GTM • AI Adoption". A real prose
+  // bio rarely needs 2 em-dashes in one ~400-char chunk; 2+ is a
+  // reliable signal of a headline chain.
   const emDashCount = (t.match(/ — | – /g) || []).length;
   const bulletCount = (t.match(/ • | · /g) || []).length;
-  if (emDashCount + bulletCount >= 3) {
+  if (emDashCount + bulletCount >= 2) {
     issues.push('headline-only (em-dash/bullet chain)');
+  }
+
+  // Comma-list headline — "Executive Development, Learning Experience
+  // Design, Facilitation." style. No verbs, just noun phrases joined
+  // by commas. Caught by the absence of an English verb after a long
+  // noun-list. Heuristic: if the bio starts with the name and then
+  // has 3+ commas before any verb-like word (is/works/leads/etc.),
+  // it's a headline.
+  const firstSentence = t.split(/[.!?]/)[0] || "";
+  const commasInFirst = (firstSentence.match(/,/g) || []).length;
+  const hasVerb = /\b(is|are|was|were|works?|leads?|brings?|helps?|founded|builds?|designs?|delivers?|teaches?|specializes?|combines?|trains?|coaches?|advises?|consults?|focuses?|holds?|serves?|spent|spends?|joined?|left|previously)\b/i.test(firstSentence);
+  if (commasInFirst >= 3 && !hasVerb) {
+    issues.push('headline-only (comma list, no verb)');
+  }
+
+  // Social-media / marketing chatter. "Doing Cool Sh*t with Amazing
+  // People", "Let's innovate together", "AIForGood TechForGood".
+  // These usually come from a LinkedIn About-section bullet list that
+  // sneaks through Exa's chrome filter.
+  if (/\b(doing cool|let'?s\s+(innovate|connect|chat|talk)|driving positive change|amazing people|aiforgood|techforgood|reach out|message me|dm me|hit me up|building (the )?future)\b/i.test(t)) {
+    issues.push('social-media chrome');
+  }
+
+  // Sentence-fragment leaks — "They said this includes ...".
+  if (/\bthey\s+said\b/i.test(t)) {
+    issues.push('sentence-fragment leak');
+  }
+
+  // Tabular Boulder-Philharmonic-tubist style content: chrome where the
+  // source page describes a DIFFERENT person who happens to share a
+  // name. Catch on words you'd never see in a workshop-facilitator bio.
+  if (/\b(tubist|tuba|philharmonic|brass quintet|orchestra|principal violin|cellist|symphony)\b/i.test(t)) {
+    issues.push('different-person source (musician)');
   }
 
   // Embedded postal address ("located at 163 Amsterdam Avenue ... 10023").
@@ -1799,16 +1833,29 @@ function cleanHeadline_(s) {
  */
 function stripStreetAddresses_(bio) {
   if (!bio) return bio;
-  return bio
-    // "located at the address 163 Amsterdam Avenue New York, Ny, 10023."
-    .replace(/\b(?:located\s+at(?:\s+the\s+address)?|address[ed]*\s+at)\s+[^.!?]*?\d[^.!?]*?\b\d{4,5}\b[^.!?]*?[.!?]/gi, '')
-    // standalone "123 Main Street ... 10023" patterns that survived
-    .replace(/\b\d{1,5}\s+[A-Z][A-Za-z'.\-]+(?:\s+(?:Avenue|Ave|Street|St|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Place|Pl|Way|Square|Sq|Highway|Hwy))\b[^.!?]*?\b\d{4,5}\b[,.]?/gi, '')
-    // "Address: ..."
-    .replace(/\bAddress:\s+[^.!?]+[.!?]/gi, '')
-    .replace(/\s+,/g, ',')
-    .replace(/\s+\./g, '.')
-    .replace(/\s+/g, ' ')
+  // Sentence-level: kill any complete sentence containing both a street
+  // number + street type AND a 5-digit zip OR a 2-letter US state. This
+  // catches "Gita Gupte located at the address 163 Amsterdam Avenue
+  // New York, Ny, 10023." plus most other phrasings ("address: 163...",
+  // "headquartered at 1600 Pennsylvania Ave...", etc).
+  const sentenceRe = /[^.!?]*?\b\d{1,5}\s+[A-Z][A-Za-z'.\-]*(?:\s+[A-Z][A-Za-z'.\-]+){0,4}\s+(?:Avenue|Ave\.?|Street|St\.?|Road|Rd\.?|Boulevard|Blvd\.?|Lane|Ln\.?|Drive|Dr\.?|Court|Ct\.?|Place|Pl\.?|Way|Square|Sq\.?|Highway|Hwy\.?|Parkway|Pkwy\.?)[^.!?]*?(?:\b\d{5}(?:-\d{4})?\b|\b[A-Z]{2}\b)[^.!?]*?[.!?]/gi;
+  let out = bio.replace(sentenceRe, "");
+
+  // "Address: 123 ... 10023"
+  out = out.replace(/\bAddress:\s+[^.!?]+[.!?]/gi, "");
+  // Standalone "located at [anything] [zip]" / "headquartered at [...]"
+  // catches cases the sentence-level pattern missed (e.g. very short
+  // sentences with no trailing period).
+  out = out.replace(/\b(?:located|headquartered|based)\s+at\s+(?:the\s+address\s+)?\d[^.!?]*?\b\d{4,5}\b[^.!?]*?[.!?]?/gi, "");
+  // Trailing "Based in NY, NY." after an address strip is also redundant
+  // — the directory shows location separately. Strip it.
+  out = out.replace(/\s*Based in [^.]+\.\s*$/i, "");
+
+  return out
+    .replace(/\s+,/g, ",")
+    .replace(/,\s*\./g, ".")
+    .replace(/\s+\./g, ".")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
