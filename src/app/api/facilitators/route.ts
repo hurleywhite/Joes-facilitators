@@ -6,7 +6,11 @@ import { Facilitator } from "@/types/facilitator";
 import { resolveCoords } from "@/lib/geocode";
 import { generateBio } from "@/lib/bio-enrich";
 import { fetchLinkedInMetadata } from "@/lib/linkedin-enrich";
-import { readStore, applyOverlay } from "@/data/transcript-overlay";
+import {
+  readStore,
+  applyOverlay,
+  OverlayStore,
+} from "@/data/transcript-overlay";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -69,7 +73,39 @@ function cleanLinkedInDescription(desc: string): string {
     .trim();
 }
 
-export async function GET() {
+/**
+ * Load the transcript-overlay patches.
+ *
+ * Local dev: every route shares the same Node process, so readStore() pulls
+ * the patches straight from disk.
+ *
+ * Vercel: each route handler is packaged into its own serverless function with
+ * its own /tmp filesystem — so the patches written by /api/transcripts/apply
+ * are invisible to this function on disk. We fetch them over HTTP from the
+ * apply route's GET endpoint (which IS the lambda that owns the file). This
+ * is a stopgap; the right long-term fix is moving the overlay into Vercel KV
+ * / Blob / Supabase so it survives lambda cold starts too.
+ */
+async function loadOverlay(req: Request): Promise<OverlayStore> {
+  if (!process.env.VERCEL) {
+    return readStore();
+  }
+  try {
+    const url = new URL("/api/transcripts/apply", req.url);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return { patches: {} };
+    const data = (await res.json()) as OverlayStore;
+    if (!data.patches || typeof data.patches !== "object") {
+      return { patches: {} };
+    }
+    return data;
+  } catch (err) {
+    console.error("Failed to load overlay via HTTP, falling back to empty:", err);
+    return { patches: {} };
+  }
+}
+
+export async function GET(req: Request) {
   let sheetUrl = process.env.GOOGLE_SHEET_CSV_URL;
 
   if (sheetUrl) {
@@ -79,7 +115,7 @@ export async function GET() {
       const facilitators = await fetchFromGoogleSheet(sheetUrl);
       if (facilitators.length > 0) {
         const enriched = await enrich(facilitators);
-        const overlay = await readStore();
+        const overlay = await loadOverlay(req);
         const merged = applyOverlay(enriched, overlay);
         return NextResponse.json(merged, {
           headers: {
@@ -96,7 +132,7 @@ export async function GET() {
   }
 
   const enriched = await enrich(dummyFacilitators);
-  const overlay = await readStore();
+  const overlay = await loadOverlay(req);
   const merged = applyOverlay(enriched, overlay);
   return NextResponse.json(merged);
 }
