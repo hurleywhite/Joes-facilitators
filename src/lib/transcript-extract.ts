@@ -219,14 +219,14 @@ function enforceEvidence(
     const quote = evidence[f as string];
     if (!quote || typeof quote !== "string") {
       // No evidence quote — drop the field
-      (cleaned as Record<string, unknown>)[f as string] = null;
+      (cleaned as unknown as Record<string, unknown>)[f as string] = null;
       continue;
     }
     // Verify the quote (or a meaningful substring) appears in the transcript.
     // Normalize whitespace, lowercase, and require at least an 8-char overlap.
     const qNorm = quote.toLowerCase().replace(/\s+/g, " ").trim();
     if (qNorm.length < 6) {
-      (cleaned as Record<string, unknown>)[f as string] = null;
+      (cleaned as unknown as Record<string, unknown>)[f as string] = null;
       continue;
     }
     const transcriptNorm = lower.replace(/\s+/g, " ");
@@ -234,7 +234,7 @@ function enforceEvidence(
       // Try a shorter window — first 30 chars — to allow minor punctuation differences
       const probe = qNorm.slice(0, Math.min(30, qNorm.length));
       if (!transcriptNorm.includes(probe)) {
-        (cleaned as Record<string, unknown>)[f as string] = null;
+        (cleaned as unknown as Record<string, unknown>)[f as string] = null;
         continue;
       }
     }
@@ -244,7 +244,7 @@ function enforceEvidence(
 
   // If after evidence enforcement there are no fields left, lower confidence
   const anyField = fields.some((f) => {
-    const v = (cleaned as Record<string, unknown>)[f as string];
+    const v = (cleaned as unknown as Record<string, unknown>)[f as string];
     return v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0);
   });
   if (!anyField && cleaned.matchConfidence !== "none") {
