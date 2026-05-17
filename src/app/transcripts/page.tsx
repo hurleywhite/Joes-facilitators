@@ -493,20 +493,22 @@ function ResultCard({
         ? "bg-amber-100 text-amber-700"
         : "bg-red-100 text-red-700";
 
-  const fieldRows: { key: FieldKey; value: unknown }[] = [
-    { key: "availability", value: ext.availability },
-    { key: "currentEngagement", value: ext.currentEngagement },
-    { key: "location", value: ext.location },
-    { key: "bio", value: ext.bio },
-    { key: "languages", value: ext.languages },
-    { key: "industryExperience", value: ext.industryExperience },
-    { key: "tier", value: ext.tier },
-    { key: "notes", value: ext.notes },
-    { key: "email", value: ext.email },
-    { key: "website", value: ext.website },
-    { key: "employmentStatus", value: ext.employmentStatus },
-    { key: "newEngagements", value: ext.newEngagements },
-  ].filter((r) => {
+  const fieldRows = (
+    [
+      { key: "availability", value: ext.availability },
+      { key: "currentEngagement", value: ext.currentEngagement },
+      { key: "location", value: ext.location },
+      { key: "bio", value: ext.bio },
+      { key: "languages", value: ext.languages },
+      { key: "industryExperience", value: ext.industryExperience },
+      { key: "tier", value: ext.tier },
+      { key: "notes", value: ext.notes },
+      { key: "email", value: ext.email },
+      { key: "website", value: ext.website },
+      { key: "employmentStatus", value: ext.employmentStatus },
+      { key: "newEngagements", value: ext.newEngagements },
+    ] as { key: FieldKey; value: unknown }[]
+  ).filter((r) => {
     if (r.value === null || r.value === undefined) return false;
     if (Array.isArray(r.value) && r.value.length === 0) return false;
     return true;
