@@ -6,6 +6,7 @@ import { Facilitator } from "@/types/facilitator";
 import { resolveCoords } from "@/lib/geocode";
 import { generateBio } from "@/lib/bio-enrich";
 import { fetchLinkedInMetadata } from "@/lib/linkedin-enrich";
+import { readStore, applyOverlay } from "@/data/transcript-overlay";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -78,7 +79,9 @@ export async function GET() {
       const facilitators = await fetchFromGoogleSheet(sheetUrl);
       if (facilitators.length > 0) {
         const enriched = await enrich(facilitators);
-        return NextResponse.json(enriched, {
+        const overlay = await readStore();
+        const merged = applyOverlay(enriched, overlay);
+        return NextResponse.json(merged, {
           headers: {
             "Cache-Control": "no-cache, no-store, must-revalidate",
           },
@@ -93,5 +96,7 @@ export async function GET() {
   }
 
   const enriched = await enrich(dummyFacilitators);
-  return NextResponse.json(enriched);
+  const overlay = await readStore();
+  const merged = applyOverlay(enriched, overlay);
+  return NextResponse.json(merged);
 }
