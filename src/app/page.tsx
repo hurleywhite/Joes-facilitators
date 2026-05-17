@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
 import { Facilitator } from "@/types/facilitator";
+import { applyOverlay, readLocalOverlay } from "@/lib/overlay-merge";
 import FacilitatorCard from "@/components/FacilitatorCard";
 import FilterBar from "@/components/FilterBar";
 import StatsBar from "@/components/StatsBar";
@@ -28,8 +29,13 @@ export default function Home() {
     try {
       const res = await fetch(`/api/facilitators?t=${Date.now()}`);
       if (!res.ok) throw new Error("Failed to fetch");
-      const data = await res.json();
-      setFacilitators(data);
+      const data: Facilitator[] = await res.json();
+      // Apply any locally-stored transcript patches on top of the server data.
+      // This guarantees the operator sees their own applied updates even when
+      // Vercel's per-lambda /tmp has cycled (see lib/overlay-merge.ts).
+      const localOverlay = readLocalOverlay();
+      const merged = applyOverlay(data, localOverlay);
+      setFacilitators(merged);
     } catch {
       setError("Failed to load facilitator data. Please try again.");
     } finally {

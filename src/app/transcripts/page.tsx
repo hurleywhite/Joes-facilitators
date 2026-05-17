@@ -14,6 +14,7 @@ import {
   Files,
 } from "lucide-react";
 import type { ExtractResult } from "@/lib/transcript-extract";
+import { addLocalPatch } from "@/lib/overlay-merge";
 
 /* ---------------------------------------------------------------------------
  * Transcript Ingestion Page
@@ -261,6 +262,19 @@ export default function TranscriptsPage() {
         throw new Error(j.error || `Apply failed: ${res.status}`);
       }
       const j = (await res.json()) as { applied: number };
+
+      // Persist the same patches to localStorage so the operator's pool view
+      // still shows them even if the server-side /tmp store has been cycled
+      // by a Vercel lambda cold start (see lib/overlay-merge.ts).
+      const appliedAt = new Date().toISOString();
+      for (const a of applications) {
+        addLocalPatch(a.facilitatorName, {
+          ...a.patch,
+          appliedAt,
+          source: a.source,
+        } as Parameters<typeof addLocalPatch>[1]);
+      }
+
       setApplySummary(
         `Applied updates to ${j.applied} facilitator${j.applied === 1 ? "" : "s"}. The platform pages will reflect this on next refresh.`
       );
