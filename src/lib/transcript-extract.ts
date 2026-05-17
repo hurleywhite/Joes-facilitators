@@ -106,6 +106,12 @@ If the transcript contains no extractable updates, return:
 
 Remember: WHEN IN DOUBT, RETURN NULL. Wrong information is worse than missing information.`;
 
+/**
+ * OpenAI model used for extraction. Override via OPENAI_EXTRACTION_MODEL env
+ * if you want to swap (e.g. to a cheaper mini for batch jobs).
+ */
+const DEFAULT_OPENAI_MODEL = "gpt-5.4";
+
 export async function extractFromTranscript(
   apiKey: string,
   transcriptText: string,
@@ -121,30 +127,31 @@ ${transcriptText}
 
 Return the JSON extraction object now.`;
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const model = process.env.OPENAI_EXTRACTION_MODEL || DEFAULT_OPENAI_MODEL;
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
+      Authorization: `Bearer ${apiKey}`,
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-5-20250929",
-      max_tokens: 2000,
-      system: EXTRACTION_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userMessage }],
+      model,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: EXTRACTION_SYSTEM_PROMPT },
+        { role: "user", content: userMessage },
+      ],
     }),
   });
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Claude API ${res.status}: ${errText}`);
+    throw new Error(`OpenAI API ${res.status}: ${errText}`);
   }
 
   const data = await res.json();
-  const text =
-    data.content?.find((b: { type: string; text?: string }) => b.type === "text")
-      ?.text || "";
+  const text: string = data.choices?.[0]?.message?.content || "";
 
   const parsed = parseJsonFromModel(text);
   return enforceEvidence(parsed, transcriptText);

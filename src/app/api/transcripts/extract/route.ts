@@ -17,12 +17,12 @@ interface ExtractApiRequest {
 
 export async function POST(req: Request) {
   try {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
         {
           error:
-            "ANTHROPIC_API_KEY is not configured. Add it to your Vercel/.env to enable transcript extraction.",
+            "OPENAI_API_KEY is not configured. Add it to your Vercel/.env to enable transcript extraction.",
         },
         { status: 500 }
       );
