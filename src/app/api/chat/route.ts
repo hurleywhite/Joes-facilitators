@@ -184,8 +184,11 @@ A "hard constraint" is anything the user asks for explicitly: a specific languag
 
 1. **A facilitator only satisfies a hard constraint if the constraint's value appears LITERALLY in their dossier fields.** Examples:
    - "Korean-speaking" → \`languages\` must contain "Korean" (case-insensitive substring). Living in Asia, speaking Malay, or being "Asia-Pacific" does NOT qualify.
+   - "English-speaking" → \`languages\` must contain "English". An EMPTY \`languages: []\` array means UNKNOWN — do NOT assume English just because they're in the US/Americas, or because their bio is written in English, or because of their name. Unknown is not a match.
    - "based in Japan" → \`location\`/\`region\`/\`city\` must mention Japan. Being elsewhere in Asia-Pacific does NOT qualify.
    - "healthcare experience" → \`industries\` must list it OR \`bio\` must mention it. "Generally experienced" does NOT qualify.
+
+   **Empty arrays mean unknown, not "default value".** \`languages: []\`, \`industries: []\`, \`pastCompanies: []\` all mean we don't have that data — they NEVER satisfy a hard constraint on that field.
 
 2. **NEVER substitute proximity for the literal constraint.** A Malaysian for Korean. A Brazilian for Spanish. An "APAC" person for Japan. None of these are valid matches. Regional similarity is not the same as the constraint.
 
