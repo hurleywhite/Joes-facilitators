@@ -7,6 +7,7 @@ import {
   Availability,
   Region,
 } from "@/types/facilitator";
+import { mergeIndustries } from "@/lib/industry-parser";
 
 /**
  * Country/keyword → Region mapping for auto-deriving region.
@@ -288,6 +289,21 @@ export async function fetchFromGoogleSheet(
       const explicitAvailability = getCol(row, ["Availability", "Status"]);
       const explicitRegion = getCol(row, ["Region"]) as Region;
 
+      const bioText = getCol(row, ["Bio", "Description", "About"]);
+      const explicitIndustries = splitList(
+        getCol(row, ["Industry Experience", "Industries", "Industry"])
+      );
+      // "Additional Skills" sits next to industries in the live sheet
+      // (currently empty). Fold any values into the bio so they are
+      // searchable + visible without inflating the Industry filter
+      // dropdown with non-industry tags.
+      const additionalSkills = splitList(
+        getCol(row, ["Additional Skills", "Skills"])
+      );
+      const enrichedBio = additionalSkills.length
+        ? `${bioText}\n\nAdditional skills: ${additionalSkills.join(", ")}`.trim()
+        : bioText;
+
       return {
         id: String(i + 1),
         name: getCol(row, ["Name"]),
@@ -312,10 +328,53 @@ export async function fetchFromGoogleSheet(
         country,
         lat: parseFloat(getCol(row, ["Lat", "Latitude"]) || "0"),
         lng: parseFloat(getCol(row, ["Lng", "Lon", "Long", "Longitude"]) || "0"),
-        bio: getCol(row, ["Bio", "Description", "About"]),
-        languages: splitList(getCol(row, ["Languages", "Language"])),
-        industryExperience: splitList(
-          getCol(row, ["Industry Experience", "Industries", "Industry"])
+        bio: enrichedBio,
+        // English is the assumed default and Joe took it out of the sheet
+        // intentionally — strip any stray "English" entries that may have
+        // come back via Apollo enrichment so they don't reappear as chips.
+        languages: splitList(getCol(row, ["Languages", "Language"])).filter(
+          (l) => l.toLowerCase() !== "english"
+        ),
+        // Merge sheet-provided industries with bio-parsed ones so people who
+        // mention "fintech" / "Pharma" / "Cloud" in their Bio still surface
+        // for industry filtering even before Joe hand-tags them.
+        industryExperience: mergeIndustries(explicitIndustries, enrichedBio),
+        demoVideoUrl:
+          ensureFullUrl(
+            getCol(row, [
+              "Demo Recording",
+              "Recording",
+              "Demo Video",
+              "Demo Video URL",
+              "Video",
+              "Video URL",
+              "Demo",
+              "Loom",
+            ])
+          ) || undefined,
+        // Past Companies = sheet column ONLY. Bio-prose company mentions
+        // are mostly clients, not employers (Erik Rodin's bio names
+        // Chanel/IKEA/Nike — those are agency clients, not where he
+        // worked). The Apps Script fills this column from Apollo's
+        // structured employment_history. Industry tags still benefit
+        // from bio-mention detection above via mergeIndustries.
+        pastCompanies: splitList(
+          getCol(row, [
+            "Past Companies",
+            "Companies",
+            "Past Employers",
+            "Employers",
+            "Worked At",
+          ])
+        ),
+        pastRoles: splitList(
+          getCol(row, [
+            "Past Roles",
+            "Roles",
+            "Titles",
+            "Past Titles",
+            "Previous Roles",
+          ])
         ),
         employmentStatus:
           getCol(row, ["Employment status", "Employment Status", "Employment"]) ||

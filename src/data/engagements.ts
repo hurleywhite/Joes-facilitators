@@ -57,15 +57,34 @@ function buildEngagementRecord(
   // Skip blank / sentinel rows entirely.
   if (!name && !client) return null;
 
+  // Sniff out a malformed row — sometimes Joe pastes a facilitator entry
+  // into the engagements tab by mistake (Status cell holds a LinkedIn
+  // URL, etc). Drop these so they don't pollute the page.
+  const statusRaw = getCol(row, ["Status", "Stage"]);
+  if (/^https?:\/\//i.test(statusRaw)) return null;
+
+  // Location: prefer an explicit Location column, otherwise compose
+  // from City + Country (the schema the live Pool Data sheet uses).
+  const explicitLocation = getCol(row, ["Location", "Where", "Venue"]);
+  const city = getCol(row, ["City"]);
+  const country = getCol(row, ["Country"]);
+  const location =
+    explicitLocation || [city, country].filter(Boolean).join(", ");
+
   return {
     id: String(index + 1),
-    name: name || "(untitled)",
-    client: client || "(unknown)",
-    status: parseStatus(getCol(row, ["Status", "Stage"])),
+    name: name || client || "(untitled)",
+    // The live "Ongoing Engagements" tab uses a single 'Engagement'
+    // column for both the workshop title and the client (e.g.
+    // "Tamkeen", "Amazon"). Default client to the engagement name in
+    // that case so the sticky "Location · Client" subtitle renders
+    // correctly ("Bahrain · Tamkeen") instead of "(unknown)".
+    client: client || name || "(unknown)",
+    status: parseStatus(statusRaw),
     startDate: getCol(row, ["Start Date", "Start", "Date", "From"]),
     endDate: getCol(row, ["End Date", "End", "To", "Through"]),
-    location: getCol(row, ["Location", "Where", "Venue"]),
-    type: getCol(row, ["Type", "Engagement Type", "Format"]),
+    location,
+    type: getCol(row, ["Type", "Engagement Type", "Format", "Focus"]),
     facilitators: splitList(
       getCol(row, [
         "Facilitators",
@@ -73,6 +92,8 @@ function buildEngagementRecord(
         "Facilitator(s)",
         "Trainers",
         "Team",
+        "Speaker",
+        "Speakers",
       ])
     ),
     valueUSD: getCol(row, ["Value", "Value (USD)", "Value USD", "Price", "Revenue"]),

@@ -11,6 +11,9 @@ import {
   applyOverlay,
   OverlayStore,
 } from "@/data/transcript-overlay";
+import { mergeIndustries } from "@/lib/industry-parser";
+import { regionFromCoords } from "@/lib/region-from-coords";
+import { fetchAvailability, toAvailabilityCsvUrl } from "@/data/availability";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -21,7 +24,29 @@ export const maxDuration = 30;
  *   - lat/lng: geocode from location
  *   - bio: spreadsheet > LinkedIn og:description > template
  */
+/**
+ * Pulls the latest availability submission per facilitator from the
+ * Availability tab and returns a name → record map. Returns an empty
+ * map if the env var isn't configured or the fetch fails.
+ */
+async function loadAvailabilityMap(): Promise<
+  Map<string, Awaited<ReturnType<typeof fetchAvailability>>[number]>
+> {
+  const url = process.env.GOOGLE_AVAILABILITY_CSV_URL;
+  if (!url) return new Map();
+  try {
+    const records = await fetchAvailability(toAvailabilityCsvUrl(url));
+    const map = new Map<string, (typeof records)[number]>();
+    for (const r of records) map.set(r.name.toLowerCase().trim(), r);
+    return map;
+  } catch (err) {
+    console.error("Availability fetch failed:", err);
+    return new Map();
+  }
+}
+
 async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
+  const availabilityMap = await loadAvailabilityMap();
   return Promise.all(
     facilitators.map(async (f) => {
       // Try LinkedIn metadata first (cached per instance)
@@ -57,7 +82,51 @@ async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
         }
       }
 
-      return { ...f, photoUrl, lat, lng, bio };
+      // Re-derive industries against the FINAL bio. fetchFromGoogleSheet
+      // already does this from the raw sheet bio, but if we end up using a
+      // LinkedIn-derived bio (or the dummy data path which doesn't run the
+      // sheet parser at all), the enriched bio may surface industries that
+      // weren't in the sheet column.
+      const industryExperience = mergeIndustries(f.industryExperience || [], bio);
+      // PAST COMPANIES intentionally uses ONLY the sheet column (filled
+      // by the Apps Script via Apollo's structured employment_history).
+      // Bio-prose mentions of company names are mostly clients ("Erik
+      // delivered for Chanel, IKEA, Nike"), not employers — mixing them
+      // in created the "Has worked with" chip row that conflated client
+      // engagements with actual employment. Apollo's employment_history
+      // is the source of truth for past employers; clients live in the
+      // bio prose where the reader can see the context.
+      const pastCompanies = f.pastCompanies || [];
+      // Defensive English strip — also covers the dummy-facilitators
+      // fallback path which still hardcodes ["English"] on every entry.
+      const languages = (f.languages || []).filter(
+        (l) => l.toLowerCase() !== "english"
+      );
+
+      // Region: prefer coords-derived over the country-string derivation
+      // baked into sheets.ts. The country derivation drifts when the
+      // location is missing/abbreviated; the lat/lng is what the map
+      // actually shows, so we should match it.
+      const coordRegion = regionFromCoords(lat, lng);
+      const region = coordRegion || f.region;
+
+      const av = availabilityMap.get(f.name.toLowerCase().trim());
+
+      return {
+        ...f,
+        photoUrl,
+        lat,
+        lng,
+        bio,
+        industryExperience,
+        pastCompanies,
+        languages,
+        region,
+        availableWindows: av?.windows,
+        willingToTravel: av?.willingToTravel,
+        availabilityNotes: av?.notes,
+        availabilityUpdatedAt: av?.submittedAt,
+      };
     })
   );
 }

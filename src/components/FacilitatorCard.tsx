@@ -1,6 +1,6 @@
 "use client";
 
-import { Facilitator } from "@/types/facilitator";
+import { Facilitator, AvailabilityWindow } from "@/types/facilitator";
 import {
   ExternalLink,
   MapPin,
@@ -8,9 +8,32 @@ import {
   Users,
   ChevronDown,
   ChevronUp,
-  Star,
+  PlayCircle,
+  Briefcase,
+  Calendar,
 } from "lucide-react";
 import { useState } from "react";
+
+/**
+ * One-line summary of availability for the card. Picks the next window
+ * starting from today and renders e.g. "thru Dec 31" or "Jul–Sep" or
+ * "Jan 5 – Mar 30, 2027".
+ */
+function summarizeWindows(windows: AvailabilityWindow[]): string {
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = windows
+    .filter((w) => w.end >= today)
+    .sort((a, b) => a.start.localeCompare(b.start));
+  if (upcoming.length === 0) return "history only";
+  const w = upcoming[0];
+  const start = new Date(w.start + "T00:00:00Z");
+  const end = new Date(w.end + "T00:00:00Z");
+  const fmt = (d: Date) =>
+    d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  if (w.start <= today && w.end.endsWith("-12-31")) return "thru year-end";
+  if (w.start <= today) return `thru ${fmt(end)}`;
+  return `${fmt(start)} – ${fmt(end)}`;
+}
 
 function focusBadge(focus: string | undefined) {
   if (!focus) {
@@ -151,13 +174,16 @@ export default function FacilitatorCard({ f }: { f: Facilitator }) {
           </div>
         </div>
 
-        {/* Bio */}
-        <p className="text-sm text-gray-600 mt-3 line-clamp-2">{f.bio}</p>
+        {/* Bio — full text. Avatar size is unchanged (w-28 h-28), so the
+            card just grows downward when the bio is long. The previous
+            `line-clamp-2` was hiding most of every facilitator's
+            background mid-sentence. */}
+        <p className="text-sm text-gray-600 mt-3 whitespace-pre-wrap">{f.bio}</p>
 
-        {/* Languages and Industries */}
-        {(f.languages?.length > 0 || f.industryExperience?.length > 0) && (
+        {/* Languages */}
+        {f.languages?.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
-            {f.languages?.slice(0, 3).map((lang) => (
+            {f.languages.slice(0, 4).map((lang) => (
               <span
                 key={`lang-${lang}`}
                 className="text-[10px] px-1.5 py-0.5 bg-cyan-50 text-cyan-700 border border-cyan-100 rounded-full"
@@ -166,16 +192,57 @@ export default function FacilitatorCard({ f }: { f: Facilitator }) {
                 {lang}
               </span>
             ))}
-            {f.industryExperience?.slice(0, 2).map((ind) => (
-              <span
-                key={`ind-${ind}`}
-                className="text-[10px] px-1.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-100 rounded-full"
-                title="Industry experience"
-              >
-                {ind}
-              </span>
-            ))}
           </div>
+        )}
+
+        {/* Industry experience — its own row, all of them shown so it's clear
+            who covers what (Healthcare, Government, Pharma, etc.). */}
+        {f.industryExperience?.length > 0 && (
+          <div className="mt-2">
+            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+              Industry experience
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {f.industryExperience.map((ind) => (
+                <span
+                  key={`ind-${ind}`}
+                  className="text-[11px] px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-100 rounded-full"
+                >
+                  {ind}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Availability windows — short summary (first window). Full
+            list lives in the drawer. Only renders if the facilitator
+            has submitted the self-service availability form. */}
+        {f.availableWindows && f.availableWindows.length > 0 && (
+          <div className="mt-2 inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+            <Calendar className="w-3 h-3" />
+            <span className="font-medium">Available</span>
+            <span className="text-emerald-600">
+              {summarizeWindows(f.availableWindows)}
+            </span>
+            {f.willingToTravel === "Yes" && <span className="text-emerald-600">· will travel</span>}
+            {f.willingToTravel === "Domestic" && <span className="text-emerald-600">· domestic travel</span>}
+            {f.willingToTravel === "No" && <span className="text-amber-600">· no travel</span>}
+          </div>
+        )}
+
+        {/* Demo video button — only if a URL is present in the sheet. */}
+        {f.demoVideoUrl && (
+          <a
+            href={f.demoVideoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-red-50 text-red-700 border border-red-100 rounded-lg hover:bg-red-100 transition-colors"
+            title="Watch demo video"
+          >
+            <PlayCircle className="w-3.5 h-3.5" />
+            Watch demo
+          </a>
         )}
 
         {/* Engagements summary */}
@@ -196,7 +263,9 @@ export default function FacilitatorCard({ f }: { f: Facilitator }) {
             )}
           </div>
 
-          {f.engagements.length > 0 && (
+          {(f.engagements.length > 0 ||
+            (f.pastCompanies?.length || 0) > 0 ||
+            (f.pastRoles?.length || 0) > 0) && (
             <button
               onClick={() => setExpanded(!expanded)}
               className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5"
@@ -212,36 +281,77 @@ export default function FacilitatorCard({ f }: { f: Facilitator }) {
         </div>
       </div>
 
-      {/* Expanded engagements */}
-      {expanded && f.engagements.length > 0 && (
-        <div className="border-t border-gray-100 bg-gray-50 px-5 py-3">
-          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-            Engagement History (most recent first)
-          </h4>
-          <ul className="space-y-1.5">
-            {f.engagements.map((eng, i) => (
-              <li
-                key={i}
-                className="flex items-center justify-between text-sm"
-              >
-                <span className="text-gray-700">{eng.name}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400">{eng.date}</span>
+      {/* Expanded panel — past roles/companies first (they describe who the
+          person IS), then engagement history (what they've done with us). */}
+      {expanded && (
+        <div className="border-t border-gray-100 bg-gray-50 px-5 py-3 space-y-3">
+          {(f.pastRoles?.length || 0) > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <Briefcase className="w-3 h-3" /> Past roles
+              </h4>
+              <div className="flex flex-wrap gap-1">
+                {f.pastRoles!.map((r) => (
                   <span
-                    className={`text-xs px-1.5 py-0.5 rounded ${
-                      eng.status === "Active"
-                        ? "bg-green-100 text-green-700"
-                        : eng.status === "Completed"
-                          ? "bg-gray-100 text-gray-600"
-                          : "bg-gray-50 text-gray-400"
-                    }`}
+                    key={r}
+                    className="text-[11px] px-2 py-0.5 bg-white border border-gray-200 text-gray-700 rounded-full"
                   >
-                    {eng.status}
+                    {r}
                   </span>
-                </div>
-              </li>
-            ))}
-          </ul>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(f.pastCompanies?.length || 0) > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                Has worked with
+              </h4>
+              <div className="flex flex-wrap gap-1">
+                {f.pastCompanies!.map((c) => (
+                  <span
+                    key={c}
+                    className="text-[11px] px-2 py-0.5 bg-white border border-indigo-200 text-indigo-700 rounded-full font-medium"
+                  >
+                    {c}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {f.engagements.length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                Engagement history (most recent first)
+              </h4>
+              <ul className="space-y-1.5">
+                {f.engagements.map((eng, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <span className="text-gray-700">{eng.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400">{eng.date}</span>
+                      <span
+                        className={`text-xs px-1.5 py-0.5 rounded ${
+                          eng.status === "Active"
+                            ? "bg-green-100 text-green-700"
+                            : eng.status === "Completed"
+                              ? "bg-gray-100 text-gray-600"
+                              : "bg-gray-50 text-gray-400"
+                        }`}
+                      >
+                        {eng.status}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>

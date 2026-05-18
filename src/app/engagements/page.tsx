@@ -11,23 +11,38 @@ import {
   Users,
   Inbox,
 } from "lucide-react";
-import { EngagementRecord, EngagementRecordStatus } from "@/types/facilitator";
+import { EngagementRecord, EngagementRecordStatus, Facilitator } from "@/types/facilitator";
+import FacilitatorDrawer from "@/components/FacilitatorDrawer";
+import EngagementDrawer from "@/components/EngagementDrawer";
 
 export default function EngagementsPage() {
   const [engagements, setEngagements] = useState<EngagementRecord[]>([]);
+  const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState<string>("");
+  const [selectedFacilitator, setSelectedFacilitator] =
+    useState<Facilitator | null>(null);
+  const [selectedEngagement, setSelectedEngagement] =
+    useState<EngagementRecord | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/engagements?t=${Date.now()}`);
-      setSource(res.headers.get("X-Engagements-Source") || "");
-      if (!res.ok) throw new Error("Failed to load engagements");
-      const data = await res.json();
-      setEngagements(Array.isArray(data) ? data : []);
+      const [engRes, facRes] = await Promise.all([
+        fetch(`/api/engagements?t=${Date.now()}`),
+        fetch(`/api/facilitators?t=${Date.now()}`),
+      ]);
+      setSource(engRes.headers.get("X-Engagements-Source") || "");
+      if (!engRes.ok) throw new Error("Failed to load engagements");
+      const engData = await engRes.json();
+      setEngagements(Array.isArray(engData) ? engData : []);
+
+      if (facRes.ok) {
+        const facData = await facRes.json();
+        setFacilitators(Array.isArray(facData) ? facData : []);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -37,8 +52,36 @@ export default function EngagementsPage() {
 
   const usingSeed = source.startsWith("seed");
 
+  /**
+   * Build a name → facilitator lookup so chips on engagement cards can
+   * resolve to a full profile. Lowercased for forgiving matching.
+   */
+  const facilitatorsByName = useMemo(() => {
+    const map = new Map<string, Facilitator>();
+    for (const f of facilitators) {
+      map.set(f.name.toLowerCase().trim(), f);
+    }
+    return map;
+  }, [facilitators]);
+
   useEffect(() => {
     fetchData();
+  }, []);
+
+  // Auto-refresh while visible — same pattern as the home page.
+  useEffect(() => {
+    const POLL_MS = 60_000;
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") fetchData();
+    }, POLL_MS);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") fetchData();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   const grouped = useMemo(() => {
@@ -144,6 +187,9 @@ export default function EngagementsPage() {
                 accent="green"
                 items={grouped.Active}
                 emptyMessage="No active engagements."
+                facilitatorsByName={facilitatorsByName}
+                onPickFacilitator={setSelectedFacilitator}
+                onPickEngagement={setSelectedEngagement}
               />
               <Section
                 title="Upcoming"
@@ -151,6 +197,9 @@ export default function EngagementsPage() {
                 accent="indigo"
                 items={grouped.Upcoming}
                 emptyMessage="No upcoming engagements."
+                facilitatorsByName={facilitatorsByName}
+                onPickFacilitator={setSelectedFacilitator}
+                onPickEngagement={setSelectedEngagement}
               />
             </div>
 
@@ -162,6 +211,9 @@ export default function EngagementsPage() {
                 accent="amber"
                 items={grouped["On Hold"]}
                 emptyMessage=""
+                facilitatorsByName={facilitatorsByName}
+                onPickFacilitator={setSelectedFacilitator}
+                onPickEngagement={setSelectedEngagement}
               />
             )}
 
@@ -173,11 +225,29 @@ export default function EngagementsPage() {
                 accent="gray"
                 items={grouped.Completed}
                 emptyMessage=""
+                facilitatorsByName={facilitatorsByName}
+                onPickFacilitator={setSelectedFacilitator}
+                onPickEngagement={setSelectedEngagement}
               />
             )}
           </>
         )}
       </div>
+
+      <FacilitatorDrawer
+        facilitator={selectedFacilitator}
+        onClose={() => setSelectedFacilitator(null)}
+      />
+      <EngagementDrawer
+        engagement={selectedEngagement}
+        facilitatorsByName={facilitatorsByName}
+        onClose={() => setSelectedEngagement(null)}
+        onPickFacilitator={(f) => {
+          // Layered drawer: opening a facilitator profile from the
+          // engagement drawer keeps the engagement context behind it.
+          setSelectedFacilitator(f);
+        }}
+      />
     </main>
   );
 }
@@ -190,12 +260,18 @@ function Section({
   accent,
   items,
   emptyMessage,
+  facilitatorsByName,
+  onPickFacilitator,
+  onPickEngagement,
 }: {
   title: string;
   subtitle: string;
   accent: "green" | "indigo" | "amber" | "gray";
   items: EngagementRecord[];
   emptyMessage: string;
+  facilitatorsByName: Map<string, Facilitator>;
+  onPickFacilitator: (f: Facilitator) => void;
+  onPickEngagement: (e: EngagementRecord) => void;
 }) {
   const accentClasses: Record<string, string> = {
     green: "border-l-green-500 bg-green-50/40",
@@ -224,7 +300,13 @@ function Section({
       ) : (
         <div className="space-y-3">
           {items.map((e) => (
-            <EngagementCard key={e.id} e={e} />
+            <EngagementCard
+              key={e.id}
+              e={e}
+              facilitatorsByName={facilitatorsByName}
+              onPickFacilitator={onPickFacilitator}
+              onPickEngagement={onPickEngagement}
+            />
           ))}
         </div>
       )}
@@ -232,18 +314,52 @@ function Section({
   );
 }
 
-function EngagementCard({ e }: { e: EngagementRecord }) {
+function EngagementCard({
+  e,
+  facilitatorsByName,
+  onPickFacilitator,
+  onPickEngagement,
+}: {
+  e: EngagementRecord;
+  facilitatorsByName: Map<string, Facilitator>;
+  onPickFacilitator: (f: Facilitator) => void;
+  onPickEngagement: (e: EngagementRecord) => void;
+}) {
   const dateRange = formatDateRange(e.startDate, e.endDate);
+
+  // Title prefers the company / client name (e.g. "AbbVie", "Tamkeen") so the
+  // card identifies the deal at a glance instead of showing the generic
+  // engagement type. The engagement name (e.g. "AI Workshop") drops to a
+  // subtitle when it's distinct from the client.
+  const title = e.client && e.client !== "(unknown)" ? e.client : e.name;
+  const subtitle = e.name && e.name !== title && e.name !== "(untitled)" ? e.name : "";
+  const locationLine = e.location ? e.location : "";
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-gray-900 text-sm truncate">
-            {e.name}
+        {/* Title block doubles as the open-drawer trigger. Stays as a
+            button so screenreaders see it as an action; the chips
+            below still capture their own clicks. */}
+        <button
+          type="button"
+          onClick={() => onPickEngagement(e)}
+          className="min-w-0 flex-1 text-left group"
+        >
+          <h3 className="font-semibold text-gray-900 text-sm truncate group-hover:text-indigo-700 transition-colors">
+            {title}
           </h3>
-          <div className="text-sm text-gray-600 mt-0.5">{e.client}</div>
-        </div>
+          {subtitle && (
+            <div className="text-xs font-medium text-indigo-700 mt-0.5 truncate">
+              {subtitle}
+            </div>
+          )}
+          {locationLine && (
+            <div className="text-xs text-gray-500 mt-0.5 truncate">
+              {locationLine}
+            </div>
+          )}
+        </button>
         <StatusBadge status={e.status} />
       </div>
 
@@ -272,14 +388,31 @@ function EngagementCard({ e }: { e: EngagementRecord }) {
         <div className="mt-2 flex items-start gap-1.5 text-xs">
           <Users className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
           <div className="flex flex-wrap gap-1">
-            {e.facilitators.map((f, i) => (
-              <span
-                key={i}
-                className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded font-medium"
-              >
-                {f}
-              </span>
-            ))}
+            {e.facilitators.map((name, i) => {
+              const match = facilitatorsByName.get(name.toLowerCase().trim());
+              if (match) {
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => onPickFacilitator(match)}
+                    className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded font-medium hover:bg-indigo-100 hover:text-indigo-900 transition-colors cursor-pointer"
+                    title={`View ${name}'s profile`}
+                  >
+                    {name}
+                  </button>
+                );
+              }
+              return (
+                <span
+                  key={i}
+                  className="px-1.5 py-0.5 bg-gray-50 text-gray-600 border border-dashed border-gray-300 rounded font-medium"
+                  title="Not in the facilitator pool"
+                >
+                  {name}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
@@ -295,6 +428,16 @@ function EngagementCard({ e }: { e: EngagementRecord }) {
           {e.valueUSD}
         </div>
       )}
+
+      {/* View-team affordance — visible at the bottom so the click
+          target is discoverable. Title click does the same thing. */}
+      <button
+        type="button"
+        onClick={() => onPickEngagement(e)}
+        className="mt-3 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+      >
+        View team &amp; details →
+      </button>
     </div>
   );
 }

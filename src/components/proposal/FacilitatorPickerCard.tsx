@@ -1,7 +1,7 @@
 "use client";
 
 import { Facilitator } from "@/types/facilitator";
-import { Check } from "lucide-react";
+import { Check, PlayCircle } from "lucide-react";
 
 export default function FacilitatorPickerCard({
   f,
@@ -48,9 +48,23 @@ export default function FacilitatorPickerCard({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="font-semibold text-gray-900 text-sm truncate">
-              {f.name}
-            </h3>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h3 className="font-semibold text-gray-900 text-sm truncate">
+                {f.name}
+              </h3>
+              {f.demoVideoUrl && (
+                <a
+                  href={f.demoVideoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-red-600 hover:text-red-800 flex-shrink-0"
+                  title="Watch demo video"
+                >
+                  <PlayCircle className="w-4 h-4" />
+                </a>
+              )}
+            </div>
             <span
               className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
                 selected ? "bg-indigo-600 text-white" : "bg-gray-100 text-transparent"

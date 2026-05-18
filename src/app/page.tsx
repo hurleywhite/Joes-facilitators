@@ -6,10 +6,12 @@ import { applyOverlay, readLocalOverlay } from "@/lib/overlay-merge";
 import FacilitatorCard from "@/components/FacilitatorCard";
 import FilterBar from "@/components/FilterBar";
 import StatsBar from "@/components/StatsBar";
-import { RefreshCw, Briefcase, Sparkles } from "lucide-react";
+import { RefreshCw, Briefcase, MessageSquare, Calendar as CalendarIcon, Check, Link2, Notebook, Sparkles } from "lucide-react";
 import Link from "next/link";
+import FacilitatorDrawer from "@/components/FacilitatorDrawer";
 
 const MapView = lazy(() => import("@/components/MapView"));
+const CalendarView = lazy(() => import("@/components/CalendarView"));
 
 export default function Home() {
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
@@ -21,7 +23,11 @@ export default function Home() {
   const [expFilter, setExpFilter] = useState("All");
   const [availFilter, setAvailFilter] = useState("All");
   const [regionFilter, setRegionFilter] = useState("All");
-  const [view, setView] = useState<"cards" | "map">("cards");
+  const [industryFilter, setIndustryFilter] = useState("All");
+  const [availableOn, setAvailableOn] = useState<string>("");
+  const [view, setView] = useState<"cards" | "map" | "calendar">("cards");
+  const [drawerFacilitator, setDrawerFacilitator] = useState<Facilitator | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -30,6 +36,17 @@ export default function Home() {
       const res = await fetch(`/api/facilitators?t=${Date.now()}`);
       if (!res.ok) throw new Error("Failed to fetch");
       const data: Facilitator[] = await res.json();
+      // Sort alphabetically by name — the sheet isn't sorted, so we sort
+      // here so the cards/map/chat results all render in a predictable
+      // order. Uses localeCompare so accented names ("Anja Novković",
+      // "Alejandro") fall into the right slot.
+      if (Array.isArray(data)) {
+        data.sort((a, b) =>
+          (a.name || "").localeCompare(b.name || "", undefined, {
+            sensitivity: "base",
+          })
+        );
+      }
       // Apply any locally-stored transcript patches on top of the server data.
       // This guarantees the operator sees their own applied updates even when
       // Vercel's per-lambda /tmp has cycled (see lib/overlay-merge.ts).
@@ -47,21 +64,79 @@ export default function Home() {
     fetchData();
   }, [fetchData]);
 
+  /**
+   * Auto-refresh from the Google Sheet so edits show up without a manual click.
+   * Polls every 60 seconds while the tab is visible (cheap, since the API is
+   * already `cache: no-store` and the sheet fetch is fast), and fires
+   * immediately whenever the tab regains focus — i.e. you alt-tab from the
+   * sheet back to the app and it's already current.
+   */
+  useEffect(() => {
+    const POLL_MS = 60_000;
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") fetchData();
+    }, POLL_MS);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") fetchData();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [fetchData]);
+
+  // Build the industry option list from the loaded data — keeps the dropdown
+  // in sync with whatever bios + sheet columns produced after parsing.
+  const industryOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const f of facilitators) {
+      for (const ind of f.industryExperience || []) {
+        counts.set(ind, (counts.get(ind) || 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([name]) => name);
+  }, [facilitators]);
+
   const filtered = useMemo(() => {
     return facilitators.filter((f) => {
+      const q = search.toLowerCase();
       const matchesSearch =
         !search ||
-        f.name.toLowerCase().includes(search.toLowerCase()) ||
-        f.location.toLowerCase().includes(search.toLowerCase()) ||
-        f.bio.toLowerCase().includes(search.toLowerCase()) ||
-        f.country.toLowerCase().includes(search.toLowerCase());
+        f.name.toLowerCase().includes(q) ||
+        f.location.toLowerCase().includes(q) ||
+        f.bio.toLowerCase().includes(q) ||
+        f.country.toLowerCase().includes(q) ||
+        (f.industryExperience || []).some((i) => i.toLowerCase().includes(q)) ||
+        (f.pastCompanies || []).some((c) => c.toLowerCase().includes(q)) ||
+        (f.pastRoles || []).some((r) => r.toLowerCase().includes(q));
       const matchesFocus = focusFilter === "All" || f.focus === focusFilter;
       const matchesExp = expFilter === "All" || f.experienceLevel === expFilter;
       const matchesAvail = availFilter === "All" || f.availability === availFilter;
       const matchesRegion = regionFilter === "All" || f.region === regionFilter;
-      return matchesSearch && matchesFocus && matchesExp && matchesAvail && matchesRegion;
+      const matchesIndustry =
+        industryFilter === "All" ||
+        (f.industryExperience || []).some(
+          (i) => i.toLowerCase() === industryFilter.toLowerCase()
+        );
+      const matchesDate =
+        !availableOn ||
+        (f.availableWindows?.some(
+          (w) => availableOn >= w.start && availableOn <= w.end
+        ) ?? false);
+      return (
+        matchesSearch &&
+        matchesFocus &&
+        matchesExp &&
+        matchesAvail &&
+        matchesRegion &&
+        matchesIndustry &&
+        matchesDate
+      );
     });
-  }, [facilitators, search, focusFilter, expFilter, availFilter, regionFilter]);
+  }, [facilitators, search, focusFilter, expFilter, availFilter, regionFilter, industryFilter, availableOn]);
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -80,6 +155,48 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                const url = `${window.location.origin}/availability`;
+                try {
+                  await navigator.clipboard.writeText(url);
+                  setLinkCopied(true);
+                  setTimeout(() => setLinkCopied(false), 2000);
+                } catch {
+                  // Clipboard blocked — fall through to opening in new tab.
+                  window.open(url, "_blank");
+                }
+              }}
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-amber-50 text-amber-800 rounded-lg hover:bg-amber-100 transition-colors"
+              title="Copy facilitator availability form link"
+            >
+              {linkCopied ? (
+                <>
+                  <Check className="w-4 h-4 text-green-600" />
+                  Link copied
+                </>
+              ) : (
+                <>
+                  <Link2 className="w-4 h-4" />
+                  Share avail. form
+                </>
+              )}
+            </button>
+            <Link
+              href="/chat"
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Ask
+            </Link>
+            <Link
+              href="/edit"
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
+              title="Update the spreadsheet with plain-English notes"
+            >
+              <Notebook className="w-4 h-4" />
+              Notes
+            </Link>
             <Link
               href="/transcripts"
               className="flex items-center gap-2 px-3 py-2 text-sm bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors"
@@ -128,11 +245,44 @@ export default function Home() {
           onAvailChange={setAvailFilter}
           regionFilter={regionFilter}
           onRegionChange={setRegionFilter}
+          industryFilter={industryFilter}
+          onIndustryChange={setIndustryFilter}
+          industryOptions={industryOptions}
           view={view}
           onViewChange={setView}
           totalCount={facilitators.length}
           filteredCount={filtered.length}
         />
+
+        {/* Availability date filter — pulls from the Availability tab
+            submissions. Only shows facilitators whose declared windows
+            include the picked date. */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm bg-white border border-gray-200 rounded-xl px-4 py-3">
+          <label className="flex items-center gap-2 text-gray-600 font-medium">
+            <CalendarIcon className="w-4 h-4 text-indigo-600" />
+            Filter by date available:
+          </label>
+          <input
+            type="date"
+            value={availableOn}
+            onChange={(e) => setAvailableOn(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 text-gray-700"
+          />
+          {availableOn && (
+            <button
+              onClick={() => setAvailableOn("")}
+              className="text-xs text-gray-500 hover:text-gray-800 underline-offset-2 hover:underline"
+            >
+              Clear
+            </button>
+          )}
+          <span className="sm:ml-auto text-xs text-gray-400">
+            Pulls from the self-served{" "}
+            <a href="/availability" className="text-indigo-600 hover:underline">
+              availability form
+            </a>
+          </span>
+        </div>
 
         {/* Error */}
         {error && (
@@ -151,8 +301,8 @@ export default function Home() {
         {/* Content */}
         {!loading && !error && (
           <>
-            {view === "cards" ? (
-              filtered.length > 0 ? (
+            {view === "cards" &&
+              (filtered.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filtered.map((f) => (
                     <FacilitatorCard key={f.id} f={f} />
@@ -162,8 +312,9 @@ export default function Home() {
                 <div className="text-center py-16 text-gray-400">
                   No facilitators match your filters.
                 </div>
-              )
-            ) : (
+              ))}
+
+            {view === "map" && (
               <Suspense
                 fallback={
                   <div className="flex items-center justify-center py-20">
@@ -174,6 +325,21 @@ export default function Home() {
                 <div style={{ height: "600px" }}>
                   <MapView facilitators={filtered} />
                 </div>
+              </Suspense>
+            )}
+
+            {view === "calendar" && (
+              <Suspense
+                fallback={
+                  <div className="flex items-center justify-center py-20">
+                    <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+                  </div>
+                }
+              >
+                <CalendarView
+                  facilitators={filtered}
+                  onPickFacilitator={setDrawerFacilitator}
+                />
               </Suspense>
             )}
 
@@ -222,6 +388,11 @@ export default function Home() {
           Facilitator Pool Manager &middot; Data sourced from Google Sheets
         </div>
       </footer>
+
+      <FacilitatorDrawer
+        facilitator={drawerFacilitator}
+        onClose={() => setDrawerFacilitator(null)}
+      />
     </main>
   );
 }

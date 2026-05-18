@@ -105,16 +105,33 @@ export default function MapView({
         (e) => e.status === "Completed"
       ).length;
 
+      // Map popup — minimal HTML escaping. The fields originate from the
+      // sheet so we trust them, but we still strip quotes to keep the
+      // attribute injection from breaking on names like O'Brien.
+      const esc = (s: string | undefined) =>
+        (s || "").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+      const links: string[] = [];
+      if (f.linkedinUrl) {
+        links.push(
+          `<a href="${esc(f.linkedinUrl)}" target="_blank" rel="noopener" style="font-size:11px;color:#2563eb;text-decoration:none;">LinkedIn →</a>`
+        );
+      }
+      if (f.demoVideoUrl) {
+        links.push(
+          `<a href="${esc(f.demoVideoUrl)}" target="_blank" rel="noopener" style="font-size:11px;color:#dc2626;text-decoration:none;">▶ Watch demo</a>`
+        );
+      }
+
       marker.bindPopup(`
-        <div style="min-width:180px;font-family:system-ui,sans-serif;">
-          <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${f.name}</div>
-          <div style="color:#666;font-size:12px;margin-bottom:6px;">${f.location}</div>
-          <div style="display:flex;gap:4px;margin-bottom:6px;">
-            <span style="background:${color}20;color:${color};padding:2px 6px;border-radius:10px;font-size:11px;font-weight:500;">${f.focus || "Focus TBD"}</span>
+        <div style="min-width:200px;font-family:system-ui,sans-serif;">
+          <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${esc(f.name)}</div>
+          <div style="color:#666;font-size:12px;margin-bottom:6px;">${esc(f.location)}</div>
+          <div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;">
+            <span style="background:${color}20;color:${color};padding:2px 6px;border-radius:10px;font-size:11px;font-weight:500;">${esc(f.focus) || "Focus TBD"}</span>
             <span style="background:#f3f4f6;color:#374151;padding:2px 6px;border-radius:10px;font-size:11px;font-weight:500;">${f.experienceLevel}</span>
           </div>
-          <div style="font-size:11px;color:#888;">${completedCount} engagement${completedCount !== 1 ? "s" : ""} completed</div>
-          <a href="${f.linkedinUrl}" target="_blank" rel="noopener" style="font-size:11px;color:#2563eb;text-decoration:none;">LinkedIn Profile →</a>
+          <div style="font-size:11px;color:#888;margin-bottom:6px;">${completedCount} engagement${completedCount !== 1 ? "s" : ""} completed</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">${links.join("")}</div>
         </div>
       `);
 

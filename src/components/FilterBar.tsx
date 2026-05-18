@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Filter, LayoutGrid, Map as MapIcon } from "lucide-react";
+import { Search, Filter, LayoutGrid, Map as MapIcon, Calendar } from "lucide-react";
 
 interface FilterBarProps {
   search: string;
@@ -13,8 +13,11 @@ interface FilterBarProps {
   onAvailChange: (v: string) => void;
   regionFilter: string;
   onRegionChange: (v: string) => void;
-  view: "cards" | "map";
-  onViewChange: (v: "cards" | "map") => void;
+  industryFilter: string;
+  onIndustryChange: (v: string) => void;
+  industryOptions: string[];
+  view: "cards" | "map" | "calendar";
+  onViewChange: (v: "cards" | "map" | "calendar") => void;
   totalCount: number;
   filteredCount: number;
 }
@@ -30,6 +33,9 @@ export default function FilterBar({
   onAvailChange,
   regionFilter,
   onRegionChange,
+  industryFilter,
+  onIndustryChange,
+  industryOptions,
   view,
   onViewChange,
   totalCount,
@@ -43,7 +49,8 @@ export default function FilterBar({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by name, location, or keyword..."
+            placeholder="Search name, location, industry, past company or role..."
+            title="Searches across name, location, bio, country, industry experience, past companies, and past roles"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
@@ -73,6 +80,18 @@ export default function FilterBar({
           >
             <MapIcon className="w-4 h-4" />
             Map
+          </button>
+          <button
+            onClick={() => onViewChange("calendar")}
+            className={`px-3 py-2 flex items-center gap-1.5 text-sm transition-colors ${
+              view === "calendar"
+                ? "bg-indigo-600 text-white"
+                : "bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+            title="Show availability timeline"
+          >
+            <Calendar className="w-4 h-4" />
+            Calendar
           </button>
         </div>
       </div>
@@ -145,6 +164,26 @@ export default function FilterBar({
           <option value="Medium">Medium</option>
           <option value="Low">Low</option>
         </select>
+
+        {/* Industry filter — only render when there are industries to pick. */}
+        {industryOptions.length > 0 && (
+          <select
+            value={industryFilter}
+            onChange={(e) => onIndustryChange(e.target.value)}
+            className={`border rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
+              industryFilter !== "All"
+                ? "border-rose-400 text-rose-700 bg-rose-50"
+                : "border-gray-200"
+            }`}
+          >
+            <option value="All">All Industries</option>
+            {industryOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Results count */}
