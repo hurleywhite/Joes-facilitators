@@ -101,17 +101,31 @@ export default function Home() {
   }, [facilitators]);
 
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return facilitators.filter((f) => {
-      const q = search.toLowerCase();
+      // Defensive lowercasing — any missing/undefined field used to crash
+      // the entire filter (e.g. f.bio undefined → ".toLowerCase()" throws),
+      // which made the search look broken with zero results for everything.
+      const contains = (s: string | undefined | null) =>
+        !!s && s.toLowerCase().includes(q);
       const matchesSearch =
-        !search ||
-        f.name.toLowerCase().includes(q) ||
-        f.location.toLowerCase().includes(q) ||
-        f.bio.toLowerCase().includes(q) ||
-        f.country.toLowerCase().includes(q) ||
-        (f.industryExperience || []).some((i) => i.toLowerCase().includes(q)) ||
-        (f.pastCompanies || []).some((c) => c.toLowerCase().includes(q)) ||
-        (f.pastRoles || []).some((r) => r.toLowerCase().includes(q));
+        !q ||
+        contains(f.name) ||
+        contains(f.location) ||
+        contains(f.bio) ||
+        contains(f.country) ||
+        contains(f.city) ||
+        contains(f.region) ||
+        contains(f.email) ||
+        contains(f.notes) ||
+        contains(f.focus) ||
+        contains(f.tier) ||
+        contains(f.experienceLevel) ||
+        contains(f.availability) ||
+        (f.languages || []).some((l) => contains(l)) ||
+        (f.industryExperience || []).some((i) => contains(i)) ||
+        (f.pastCompanies || []).some((c) => contains(c)) ||
+        (f.pastRoles || []).some((r) => contains(r));
       const matchesFocus = focusFilter === "All" || f.focus === focusFilter;
       const matchesExp = expFilter === "All" || f.experienceLevel === expFilter;
       const matchesAvail = availFilter === "All" || f.availability === availFilter;

@@ -237,13 +237,18 @@ If the reason needs the words "however", "but", "though", "cannot confirm", or "
     summary?: string;
     matches?: { id: string; reason: string }[];
   };
+  // Detect language constraints from the user's question so we can validate
+  // every returned match against the dossier deterministically.
+  const requiredLanguages = detectLanguageConstraints_(message);
+
   const byId = new Map(pool.map((f) => [f.id, f]));
   const matches: ChatMatch[] = [];
   let droppedHedged = 0;
+  let droppedLanguage = 0;
   for (const m of input.matches || []) {
     const facilitator = byId.get(m.id);
     if (!facilitator) continue;
-    // Safety net: if the model admits in its own reason that the person
+    // Safety net 1: if the model admits in its own reason that the person
     // doesn't actually satisfy a constraint (hedge words, negation), drop
     // the match. Catches the failure mode where the model writes a correct
     // summary but a self-contradicting matches array.
@@ -251,12 +256,31 @@ If the reason needs the words "however", "but", "though", "cannot confirm", or "
       droppedHedged++;
       continue;
     }
+    // Safety net 2: if the user asked for a specific language, verify the
+    // facilitator's languages array literally contains it. Empty languages
+    // means unknown, not a match. Catches the failure mode where the model
+    // claims someone speaks a language they don't have listed.
+    if (requiredLanguages.length > 0) {
+      const have = (facilitator.languages || []).map((l) => l.toLowerCase());
+      const allSatisfied = requiredLanguages.every((req) =>
+        have.some((h) => h.includes(req) || req.includes(h))
+      );
+      if (!allSatisfied) {
+        droppedLanguage++;
+        continue;
+      }
+    }
     matches.push({ facilitator, reason: m.reason });
   }
 
   let answer = input.summary || "Here's who I found.";
-  if (droppedHedged > 0 && matches.length === 0) {
-    answer = `${answer} (${droppedHedged} candidate${droppedHedged === 1 ? "" : "s"} were filtered out because they didn't fully meet the request.)`;
+  const totalDropped = droppedHedged + droppedLanguage;
+  if (totalDropped > 0 && matches.length === 0) {
+    const langNote =
+      droppedLanguage > 0 && requiredLanguages.length > 0
+        ? ` No facilitator's dossier explicitly lists ${requiredLanguages.join(" / ")}.`
+        : "";
+    answer = `${answer} (${totalDropped} candidate${totalDropped === 1 ? "" : "s"} were filtered out because they didn't fully meet the request.${langNote})`;
   }
 
   return {
@@ -265,6 +289,46 @@ If the reason needs the words "however", "but", "though", "cannot confirm", or "
     usedClaude: true,
     total: pool.length,
   };
+}
+
+/**
+ * Detect language-name constraints in the user's question. Returns a list
+ * of lowercased language names that any returned match MUST have in their
+ * `languages` array. Conservative — only triggers on well-known language
+ * names paired with a "speak"/"speaking"/"speaks" verb, OR with explicit
+ * questions like "any Korean facilitators".
+ */
+function detectLanguageConstraints_(message: string): string[] {
+  const text = message.toLowerCase();
+  const LANGUAGES = [
+    "english","spanish","french","german","italian","portuguese","dutch",
+    "swedish","norwegian","danish","finnish","polish","russian","ukrainian",
+    "greek","turkish","romanian","czech","hungarian","arabic","hebrew",
+    "farsi","persian","urdu","hindi","bengali","tamil","telugu","malayalam",
+    "mandarin","chinese","cantonese","japanese","korean","vietnamese","thai",
+    "indonesian","malay","tagalog","filipino","swahili",
+  ];
+  const found: string[] = [];
+  for (const lang of LANGUAGES) {
+    // Only treat as a hard constraint when the question is plausibly asking
+    // for that language as a skill. Match \blang\b in contexts like
+    // "korean-speaking", "speaks korean", "korean facilitator", "in korean".
+    const re = new RegExp(
+      `\\b${lang}(?:[- ]?(?:speaking|speaker|speakers|language))?\\b`,
+      "i"
+    );
+    if (re.test(text)) {
+      // Skip very generic "english"/"chinese" mentions that may not be a hard
+      // constraint (e.g. "english version of the workshop"). Require either
+      // the speaking-verb context, or the language word being the main subject.
+      const requires =
+        /speak|speaking|speaker|fluent|language|tongue/i.test(text) ||
+        new RegExp(`\\b${lang}[- ]?(facilitator|trainer|workshop)`, "i").test(text) ||
+        new RegExp(`\\b(any|find|need|looking for|who) ${lang}\\b`, "i").test(text);
+      if (requires) found.push(lang);
+    }
+  }
+  return found;
 }
 
 /**
