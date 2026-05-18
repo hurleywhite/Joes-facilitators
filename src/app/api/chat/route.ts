@@ -239,17 +239,74 @@ If the reason needs the words "however", "but", "though", "cannot confirm", or "
   };
   const byId = new Map(pool.map((f) => [f.id, f]));
   const matches: ChatMatch[] = [];
+  let droppedHedged = 0;
   for (const m of input.matches || []) {
     const facilitator = byId.get(m.id);
-    if (facilitator) matches.push({ facilitator, reason: m.reason });
+    if (!facilitator) continue;
+    // Safety net: if the model admits in its own reason that the person
+    // doesn't actually satisfy a constraint (hedge words, negation), drop
+    // the match. Catches the failure mode where the model writes a correct
+    // summary but a self-contradicting matches array.
+    if (reasonIsHedged_(m.reason)) {
+      droppedHedged++;
+      continue;
+    }
+    matches.push({ facilitator, reason: m.reason });
+  }
+
+  let answer = input.summary || "Here's who I found.";
+  if (droppedHedged > 0 && matches.length === 0) {
+    answer = `${answer} (${droppedHedged} candidate${droppedHedged === 1 ? "" : "s"} were filtered out because they didn't fully meet the request.)`;
   }
 
   return {
-    answer: input.summary || "Here's who I found.",
+    answer,
     matches,
     usedClaude: true,
     total: pool.length,
   };
+}
+
+/**
+ * Returns true if the model's match reason contains a phrase that admits
+ * the facilitator doesn't actually satisfy the constraint. Defense in depth
+ * against the failure mode where the model writes a hedge/negation in the
+ * reason but still includes the person in the matches array.
+ */
+function reasonIsHedged_(reason: string): boolean {
+  const lower = (reason || "").toLowerCase();
+  const phrases = [
+    "cannot confirm",
+    "can't confirm",
+    "no explicit",
+    "not listed",
+    "not confirmed",
+    "not explicitly",
+    "languages empty",
+    "language is empty",
+    "no language",
+    "however",
+    "though ",
+    "but no",
+    "but doesn",
+    "but does not",
+    "may speak",
+    "might speak",
+    "possibly",
+    "likely speaks",
+    "presumably",
+    "could be",
+    "closest match",
+    "only candidate",
+    "as a fallback",
+    "fallback option",
+    "no direct match",
+    "not in the pool",
+    "no facilitator",
+    "regional proximity",
+    "not based in",
+  ];
+  return phrases.some((p) => lower.includes(p));
 }
 
 /**
