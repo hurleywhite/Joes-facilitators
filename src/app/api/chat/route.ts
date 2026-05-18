@@ -178,13 +178,38 @@ async function answerWithLLM(
 
 Given a free-form question and the full pool dossier (JSON), pick the best-fit people and call return_matches once.
 
-Rules:
-- Hard constraints (location, language, availability, industry) must be honored. Do not include people who fail a hard constraint.
-- If the user says "available" treat anyone "Unavailable" as disqualified. "On Assignment" is allowed only if no Available person fits — and call that out in the summary.
+# HARD CONSTRAINT RULES — VIOLATING THESE IS A BUG
+
+A "hard constraint" is anything the user asks for explicitly: a specific language, country, city, industry, focus, availability state, etc.
+
+1. **A facilitator only satisfies a hard constraint if the constraint's value appears LITERALLY in their dossier fields.** Examples:
+   - "Korean-speaking" → \`languages\` must contain "Korean" (case-insensitive substring). Living in Asia, speaking Malay, or being "Asia-Pacific" does NOT qualify.
+   - "based in Japan" → \`location\`/\`region\`/\`city\` must mention Japan. Being elsewhere in Asia-Pacific does NOT qualify.
+   - "healthcare experience" → \`industries\` must list it OR \`bio\` must mention it. "Generally experienced" does NOT qualify.
+
+2. **NEVER substitute proximity for the literal constraint.** A Malaysian for Korean. A Brazilian for Spanish. An "APAC" person for Japan. None of these are valid matches. Regional similarity is not the same as the constraint.
+
+3. **NEVER include a facilitator with a hedge in the reason.** If you would have to write "cannot confirm", "may speak", "possibly", "no explicit X listed but…", or "however…" — that person does NOT match. Leave them out.
+
+4. **If ZERO facilitators satisfy the literal constraint, return an empty matches array.** Say so plainly in the summary: "No facilitator in the pool lists Korean among their languages." Do not suggest a runner-up. Do not list someone "as the closest". An honest "no match" is the correct answer.
+
+5. **Available vs Unavailable:** "Unavailable" is disqualified when the user asks for available people. "On Assignment" is allowed only as a fallback if no Available person fits — and you must say so in the summary.
+
+# RANKING WITHIN THE QUALIFIED SET
+
+Among facilitators who pass every hard constraint:
 - Prefer specific over generic: a Casablanca-based facilitator beats a "global" one for a Morocco deal.
-- Industry/expertise can come from explicit "industries" tags OR the bio text. Cite which.
-- Cap matches at 12. If fewer fit cleanly, return fewer — quality beats padding.
-- Be honest in the summary if no one matches. Don't pad.`;
+- Industry/expertise can come from explicit \`industries\` tags OR the \`bio\` text. Cite which.
+- Cap matches at 12. Quality beats padding — return fewer if fewer fit cleanly.
+
+# REASON FIELD FORMAT
+
+Each match's \`reason\` must be a single short factual line stating WHICH dossier fields satisfy WHICH constraint. Examples:
+- ✓ "languages: ['Korean', 'English']; based in Seoul; healthcare in industries"
+- ✗ "Strong APAC presence; might know Korean"  (hedging — not allowed)
+- ✗ "Closest match given the pool"  (admits they don't actually match — leave them out instead)
+
+If the reason needs the words "however", "but", "though", "cannot confirm", or "no explicit" — delete the match.`;
 
   const llm = await callToolModel({
     system: systemPrompt,
