@@ -76,10 +76,24 @@ function deriveRegionFromLocation(location: string, country: string): Region {
  * "San Francisco, CA" → city="San Francisco", country="USA" (CA → USA inferred)
  * "Dubai, UAE" → city="Dubai", country="UAE"
  * "Lumpur, Malaysia" → city="Lumpur", country="Malaysia"
+ *
+ * Sheet operators sometimes wrap a freeform multi-region note in parens
+ * ("(Canada/EU)", "(US)") when they don't have a definitive city. Strip
+ * those wrappers so the value is at least usable downstream (display + the
+ * region derivation regex), and for slash-multi values keep just the first
+ * piece so geocoding has something to work with.
  */
 function splitLocation(location: string): { city: string; country: string } {
   if (!location) return { city: "", country: "" };
-  const parts = location.split(",").map((s) => s.trim());
+
+  // Strip wrapping parens — "(US)" → "US", "(Canada/EU)" → "Canada/EU"
+  let v = location.trim();
+  if (v.startsWith("(") && v.endsWith(")")) v = v.slice(1, -1).trim();
+  // For multi-region slashes ("Canada/EU"), take the first piece for
+  // city/country splitting but preserve the original for display.
+  const primary = v.split("/")[0].trim();
+
+  const parts = primary.split(",").map((s) => s.trim());
   if (parts.length === 1) return { city: parts[0], country: parts[0] };
 
   const city = parts[0];
@@ -281,8 +295,16 @@ export async function fetchFromGoogleSheet(
       const { city, country } = locationField
         ? splitLocation(locationField)
         : { city: explicitCity, country: explicitCountry };
+      // Strip wrapping parens from the display string too — sheet operators
+      // sometimes type "(US)" or "(Canada/EU)" when there's no specific city.
+      // splitLocation already strips parens for the city/country fields; do
+      // the same for the user-visible string.
+      const cleanedLocationField = locationField
+        .trim()
+        .replace(/^\(([^()]+)\)$/, "$1")
+        .trim();
       const displayLocation =
-        locationField || `${city}${country ? `, ${country}` : ""}`;
+        cleanedLocationField || `${city}${country ? `, ${country}` : ""}`;
 
       const currentEngagement =
         getCol(row, ["Current Engagement", "Current", "Active Engagement"]) || null;
