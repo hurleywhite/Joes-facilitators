@@ -237,29 +237,31 @@ If the reason needs the words "however", "but", "though", "cannot confirm", or "
     summary?: string;
     matches?: { id: string; reason: string }[];
   };
-  // Detect language constraints from the user's question so we can validate
-  // every returned match against the dossier deterministically.
+  // Detect language + industry constraints from the user's question so we can
+  // validate every returned match against the dossier deterministically.
   const requiredLanguages = detectLanguageConstraints_(message);
+  const requiredIndustries = detectIndustryConstraints_(message);
+  const requiredRegion = detectRegionConstraint_(message);
+  const requiresAvailable = /\bavailable\b/i.test(message) && !/not\s+available/i.test(message);
 
   const byId = new Map(pool.map((f) => [f.id, f]));
   const matches: ChatMatch[] = [];
   let droppedHedged = 0;
   let droppedLanguage = 0;
+  let droppedIndustry = 0;
+  let droppedRegion = 0;
+  let droppedAvailability = 0;
   for (const m of input.matches || []) {
     const facilitator = byId.get(m.id);
     if (!facilitator) continue;
     // Safety net 1: if the model admits in its own reason that the person
     // doesn't actually satisfy a constraint (hedge words, negation), drop
-    // the match. Catches the failure mode where the model writes a correct
-    // summary but a self-contradicting matches array.
+    // the match.
     if (reasonIsHedged_(m.reason)) {
       droppedHedged++;
       continue;
     }
-    // Safety net 2: if the user asked for a specific language, verify the
-    // facilitator's languages array literally contains it. Empty languages
-    // means unknown, not a match. Catches the failure mode where the model
-    // claims someone speaks a language they don't have listed.
+    // Safety net 2: deterministic language verification.
     if (requiredLanguages.length > 0) {
       const have = (facilitator.languages || []).map((l) => l.toLowerCase());
       const allSatisfied = requiredLanguages.every((req) =>
@@ -270,17 +272,53 @@ If the reason needs the words "however", "but", "though", "cannot confirm", or "
         continue;
       }
     }
+    // Safety net 3: industry must appear in industries array OR bio.
+    if (requiredIndustries.length > 0) {
+      const haveTags = (facilitator.industryExperience || []).map((i) => i.toLowerCase());
+      const bioLower = (facilitator.bio || "").toLowerCase();
+      const allSatisfied = requiredIndustries.every((req) => {
+        const aliases = INDUSTRY_ALIASES[req] || [req];
+        return aliases.some(
+          (a) => haveTags.some((t) => t.includes(a)) || bioLower.includes(a)
+        );
+      });
+      if (!allSatisfied) {
+        droppedIndustry++;
+        continue;
+      }
+    }
+    // Safety net 4: region must match if user named one.
+    if (requiredRegion && facilitator.region !== requiredRegion) {
+      droppedRegion++;
+      continue;
+    }
+    // Safety net 5: availability must be "Available" if user asked for it.
+    if (requiresAvailable && facilitator.availability !== "Available") {
+      droppedAvailability++;
+      continue;
+    }
     matches.push({ facilitator, reason: m.reason });
   }
 
   let answer = input.summary || "Here's who I found.";
-  const totalDropped = droppedHedged + droppedLanguage;
+  const totalDropped =
+    droppedHedged + droppedLanguage + droppedIndustry + droppedRegion + droppedAvailability;
   if (totalDropped > 0 && matches.length === 0) {
-    const langNote =
-      droppedLanguage > 0 && requiredLanguages.length > 0
-        ? ` No facilitator's dossier explicitly lists ${requiredLanguages.join(" / ")}.`
-        : "";
-    answer = `${answer} (${totalDropped} candidate${totalDropped === 1 ? "" : "s"} were filtered out because they didn't fully meet the request.${langNote})`;
+    const reasons: string[] = [];
+    if (droppedLanguage > 0 && requiredLanguages.length > 0) {
+      reasons.push(`no facilitator's dossier lists ${requiredLanguages.join(" / ")}`);
+    }
+    if (droppedIndustry > 0 && requiredIndustries.length > 0) {
+      reasons.push(`no facilitator has ${requiredIndustries.join(" / ")} in industries or bio`);
+    }
+    if (droppedRegion > 0 && requiredRegion) {
+      reasons.push(`no facilitator is in ${requiredRegion}`);
+    }
+    if (droppedAvailability > 0) {
+      reasons.push("no facilitator is currently Available");
+    }
+    const detail = reasons.length > 0 ? ` Specifically: ${reasons.join("; ")}.` : "";
+    answer = `${answer} (${totalDropped} candidate${totalDropped === 1 ? "" : "s"} filtered out for not meeting the explicit request.${detail})`;
   }
 
   return {
@@ -289,6 +327,91 @@ If the reason needs the words "however", "but", "though", "cannot confirm", or "
     usedClaude: true,
     total: pool.length,
   };
+}
+
+/**
+ * Map of canonical industry slug → list of substring aliases that count
+ * as matches when checking facilitator.industryExperience or bio text.
+ * The slug is what we report in error messages; the aliases are what we
+ * actually match against (lowercase, substring-style).
+ */
+const INDUSTRY_ALIASES: Record<string, string[]> = {
+  healthcare: ["healthcare", "health care", "medical", "hospital", "clinical", "patient", "life sciences", "digital health", "health-tech", "healthtech"],
+  pharma: ["pharma", "pharmaceutical", "drug discovery", "drug development", "therapeutic"],
+  "financial services": ["financial services", "fintech", "banking", "bank", "capital markets", "wealth management", "investment", "trading", "payments", "credit", "hedge fund"],
+  insurance: ["insurance", "insurer", "reinsurance"],
+  technology: ["technology", "tech industry", "tech company", "tech companies", "software", "silicon valley", "tech startup"],
+  saas: ["saas", "software as a service", "b2b software"],
+  retail: ["retail", "retailer", "d2c"],
+  "e-commerce": ["e-commerce", "ecommerce", "online retail", "dtc", "marketplace"],
+  "consumer goods": ["consumer goods", "cpg", "fmcg"],
+  manufacturing: ["manufacturing", "manufacturer", "industrial", "factory", "supply chain"],
+  automotive: ["automotive", "auto industry", "vehicle", "car industry", "mobility"],
+  energy: ["energy sector", "energy industry", "oil & gas", "oil and gas", "renewable", "utility", "clean energy"],
+  education: ["education", "edtech", "academic", "university", "school", "faculty", "professor", "teaching", "curriculum"],
+  government: ["government", "public sector", "civic", "policy", "govt", "military", "federal", "air force", "department of"],
+  media: ["media", "publishing", "entertainment", "broadcast", "podcast", "streaming"],
+  marketing: ["marketing", "advertising", "branding", "agency"],
+  legal: ["legal", "law firm", "attorney", "compliance"],
+  "real estate": ["real estate", "property", "proptech"],
+  telecom: ["telecom", "telecommunications", "mobile operator"],
+  logistics: ["logistics", "shipping", "freight", "warehouse"],
+  "travel & hospitality": ["travel", "hospitality", "airline", "hotel", "cruise"],
+  "non-profit": ["non-profit", "nonprofit", "ngo", "charity", "foundation"],
+  enterprise: ["enterprise", "fortune 500", "fortune 100", "large enterprise"],
+  startups: ["startup", "venture backed", "vc-backed", "early-stage", "founder"],
+  cloud: ["cloud", "aws", "azure", "gcp", "google cloud"],
+  ai: ["ai", "artificial intelligence", "machine learning", "ml", "genai", "llm"],
+};
+
+/**
+ * Detect industry constraints from the user's question. Returns a list of
+ * canonical industry slugs that any returned match MUST satisfy (via the
+ * alias map). Conservative — triggers on the slug name appearing in the
+ * question. Avoids triggering on incidental mentions ("retail therapy") by
+ * keying off the canonical slugs and a few high-precision aliases.
+ */
+function detectIndustryConstraints_(message: string): string[] {
+  const text = message.toLowerCase();
+  const found = new Set<string>();
+  for (const slug of Object.keys(INDUSTRY_ALIASES)) {
+    // Match the slug as a whole word/phrase, OR any of its short aliases
+    // that we trust as a strong constraint signal.
+    const triggers = [slug, ...INDUSTRY_ALIASES[slug].slice(0, 3)];
+    for (const t of triggers) {
+      const re = new RegExp(`\\b${escapeForRegex_(t)}\\b`, "i");
+      if (re.test(text)) {
+        found.add(slug);
+        break;
+      }
+    }
+  }
+  return Array.from(found);
+}
+
+function escapeForRegex_(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Detect a single region constraint from the user's question.
+ */
+function detectRegionConstraint_(message: string): string | null {
+  const lower = message.toLowerCase();
+  // Order matters — check more-specific aliases first.
+  if (/\b(americas?|usa?|u\.s\.|united states|canada|mexico|brazil|south america|north america)\b/i.test(lower)) {
+    return "Americas";
+  }
+  if (/\b(europe|eu|uk|united kingdom|britain|german|france|spain|italy|nordic|scandinavia)/i.test(lower)) {
+    return "Europe";
+  }
+  if (/\b(asia[-\s]?pacific|apac|asia|india|japan|china|korea|singapore|australia|new zealand|southeast asia)\b/i.test(lower)) {
+    return "Asia-Pacific";
+  }
+  if (/\b(middle east|mea|africa|gulf|gcc|uae|saudi|dubai|qatar|nigeria|kenya|south africa)\b/i.test(lower)) {
+    return "Middle East & Africa";
+  }
+  return null;
 }
 
 /**

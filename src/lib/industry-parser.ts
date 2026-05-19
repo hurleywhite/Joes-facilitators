@@ -433,17 +433,101 @@ export function parseIndustriesFromBio(bio: string): KnownIndustry[] {
 }
 
 /**
+ * Returns true if the string looks like an industry label rather than a CRM
+ * note that leaked into the Industries cell. Live failures we've seen include:
+ *   - "Intro through Scott P"
+ *   - "Maybe competitive"
+ *   - "he will check (https://www.edifai.co.uk/)"
+ *   - URLs, parenthetical follow-ups, sentence fragments
+ *
+ * Rules:
+ *  - Anything in KNOWN_INDUSTRIES passes (case-insensitive).
+ *  - Reject if it contains a URL, parens, slash, colon, "?".
+ *  - Reject if it's longer than 40 chars (industries are short labels).
+ *  - Reject if it starts with a lowercase sentence-fragment word like
+ *    "intro", "maybe", "to", "see", "via", or a pronoun+verb pair.
+ *  - Reject if it contains more than 4 words (real industry labels are
+ *    1-3 words, e.g. "Travel & Hospitality" / "Enterprise / Fortune 500").
+ *  - Otherwise accept (catches industries we haven't enumerated yet).
+ */
+function isPlausibleIndustry_(label: string): boolean {
+  const v = (label || "").trim();
+  if (!v) return false;
+  if (v.length > 40) return false;
+
+  // Whitelist: anything we know
+  const knownLower = new Set(KNOWN_INDUSTRIES.map((s) => s.toLowerCase()));
+  if (knownLower.has(v.toLowerCase())) return true;
+
+  // Hard rejections — contains characters that signal a note, not a label
+  if (/https?:\/\/|www\.|\(|\)|[?:/]|<|>/i.test(v)) return false;
+
+  // Word-count rejection — industries are short
+  const words = v.split(/\s+/);
+  if (words.length > 4) return false;
+
+  // Lowercased opener that signals a sentence fragment / CRM note
+  const lower = v.toLowerCase();
+  const fragmentStarters = [
+    "intro",
+    "maybe",
+    "to ",
+    "see ",
+    "see:",
+    "via ",
+    "ref ",
+    "ref:",
+    "note:",
+    "tbd",
+    "n/a",
+    "na",
+    "ask ",
+    "follow ",
+    "follow-up",
+    "follow up",
+    "check ",
+    "will ",
+    "would ",
+    "could ",
+    "should ",
+    "might ",
+    "may ",
+    "possibly ",
+    "potentially ",
+    "competitive",
+    "fyi",
+  ];
+  if (fragmentStarters.some((p) => lower === p.trim() || lower.startsWith(p))) {
+    return false;
+  }
+
+  // Pronoun-verb fragments: "he will...", "she has...", "they are..."
+  if (/^(he|she|they|we|i)\s+(will|has|have|had|is|are|was|were|can|could|might|may|should)\b/i.test(v)) {
+    return false;
+  }
+
+  // Should look like a title-case label or a single uppercase acronym
+  // (e.g. "Healthcare", "Financial Services", "Enterprise / Fortune 500").
+  // Reject if it has no uppercase letter at all — a real industry label
+  // would virtually always start with one.
+  if (!/[A-Z]/.test(v)) return false;
+
+  return true;
+}
+
+/**
  * Merges sheet-provided industries with parsed-from-bio industries.
- * Explicit values are kept verbatim and come first; parsed values are
- * added only if they don't already appear (case-insensitively).
+ * Explicit values are sanitized first (drop CRM-notes-disguised-as-industries),
+ * kept first in order, and parsed values are added only if not already present.
  */
 export function mergeIndustries(
   explicit: string[],
   bio: string
 ): string[] {
+  const cleanExplicit = (explicit || []).filter(isPlausibleIndustry_);
   const parsed = parseIndustriesFromBio(bio);
-  const seen = new Set(explicit.map((s) => s.toLowerCase().trim()));
-  const out = [...explicit];
+  const seen = new Set(cleanExplicit.map((s) => s.toLowerCase().trim()));
+  const out = [...cleanExplicit];
   for (const p of parsed) {
     if (!seen.has(p.toLowerCase())) {
       out.push(p);

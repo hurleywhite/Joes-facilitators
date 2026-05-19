@@ -97,11 +97,13 @@ async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
       // is the source of truth for past employers; clients live in the
       // bio prose where the reader can see the context.
       const pastCompanies = f.pastCompanies || [];
-      // Defensive English strip — also covers the dummy-facilitators
-      // fallback path which still hardcodes ["English"] on every entry.
-      const languages = (f.languages || []).filter(
-        (l) => l.toLowerCase() !== "english"
-      );
+      // Preserve languages as-is. The earlier universal English strip was
+      // a hack to hide hardcoded ["English"] entries on the dummy fallback
+      // path — but it also stripped legitimate English entries from the
+      // real sheet, which broke "who speaks English?" queries upstream
+      // and made everyone in the Americas show as having no listed
+      // languages. The right answer is to trust the data source.
+      const languages = f.languages || [];
 
       // Region: prefer coords-derived over the country-string derivation
       // baked into sheets.ts. The country derivation drifts when the
