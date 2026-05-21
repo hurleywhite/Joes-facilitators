@@ -1958,6 +1958,28 @@ function headerMap_(headers) {
 }
 
 /**
+ * Case-insensitive, whitespace-tolerant column lookup. Tries each
+ * candidate name in order against the colOf map; matches by lower-cased
+ * trimmed key. Returns the 1-indexed column number, or 0 if no match.
+ *
+ * Use this instead of `colOf['Foo']` when the live sheet header might
+ * not match an exact case/spacing — operators rename columns all the
+ * time ("Trainers" vs "Facilitators", "Engagement Name" vs "Engagement").
+ */
+function findCol_(colOf, candidates) {
+  if (!colOf || !candidates) return 0;
+  const lower = {};
+  Object.keys(colOf).forEach(function (k) {
+    lower[String(k).toLowerCase().trim()] = colOf[k];
+  });
+  for (let i = 0; i < candidates.length; i++) {
+    const key = String(candidates[i] || '').toLowerCase().trim();
+    if (key && lower[key]) return lower[key];
+  }
+  return 0;
+}
+
+/**
  * Normalize a name for display:
  *   - "jill kiemele"  → "Jill Kiemele"
  *   - "JOHN SMITH"    → "John Smith"
@@ -2372,7 +2394,7 @@ function applyAddEngagement_(edit) {
     if (lh === 'start date' || lh === 'date' || lh === 'start' || lh === 'from') return edit.startDate || '';
     if (lh === 'end date' || lh === 'end' || lh === 'to' || lh === 'through') return edit.endDate || '';
     if (lh === 'type' || lh === 'engagement type' || lh === 'format' || lh === 'focus') return edit.type || '';
-    if (lh === 'facilitators' || lh === 'facilitator' || lh === 'facilitator(s)' || lh === 'team' || lh === 'speaker' || lh === 'speakers') {
+    if (lh === 'facilitators' || lh === 'facilitator' || lh === 'facilitator(s)' || lh === 'facilitator names' || lh === 'trainers' || lh === 'trainer' || lh === 'team' || lh === 'team members' || lh === 'speaker' || lh === 'speakers' || lh === 'lead' || lh === 'leads' || lh === 'assigned' || lh === 'assigned to') {
       return Array.isArray(edit.facilitators) ? edit.facilitators.join('; ') : '';
     }
     if (lh === 'notes' || lh === 'internal notes' || lh === 'notes/comments') return edit.notes || '';
@@ -2390,8 +2412,12 @@ function applyAddEngagement_(edit) {
 function findEngagementRow_(sheet, query) {
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const colOf = headerMap_(headers);
-  const nameCol = colOf['Engagement'] || colOf['Engagement Name'] || colOf['Workshop'] || colOf['Name'] || 1;
-  const clientCol = colOf['Client'] || colOf['Organization'] || colOf['Org'] || colOf['Company'] || nameCol;
+  // Use case-insensitive multi-alias lookup so sheets with "engagement"
+  // (lowercase) or "Workshop Name" still resolve.
+  const nameCol =
+    findCol_(colOf, ['Engagement', 'Engagement Name', 'Workshop', 'Workshop Name', 'Title', 'Name']) || 1;
+  const clientCol =
+    findCol_(colOf, ['Client', 'Organization', 'Org', 'Account', 'Company']) || nameCol;
   const lastRow = sheet.getLastRow();
   const q = String(query || '').toLowerCase().trim();
   if (!q) return null;
@@ -2412,11 +2438,40 @@ function applyAddFacilitatorToEngagement_(edit) {
   if (!found) {
     return { ok: false, message: 'No engagement matched "' + (edit.engagement || '') + '".' };
   }
-  const facCol =
-    found.colOf['Facilitators'] || found.colOf['Facilitator'] ||
-    found.colOf['Facilitator(s)'] || found.colOf['Team'] ||
-    found.colOf['Speaker'] || found.colOf['Speakers'];
-  if (!facCol) return { ok: false, message: 'Engagements sheet has no Facilitators column.' };
+  // Match the exact set of aliases the app's engagement parser accepts
+  // (src/data/engagements.ts), and do it case-insensitively so a column
+  // named "Trainers" or "trainers" both resolve. Previously we only
+  // tried a handful of exact-case names — caused "Engagements sheet has
+  // no Facilitators column" on rows where the column was "Trainers".
+  const facCol = findCol_(found.colOf, [
+    'Facilitators',
+    'Facilitator',
+    'Facilitator(s)',
+    'Facilitator Names',
+    'Trainers',
+    'Trainer',
+    'Team',
+    'Team Members',
+    'Speaker',
+    'Speakers',
+    'Lead',
+    'Leads',
+    'Assigned',
+    'Assigned To',
+  ]);
+  if (!facCol) {
+    // Surface the actual header names so the operator can rename the
+    // column or tell us the right alias to add — far more useful than
+    // "no Facilitators column" with no hint at what IS there.
+    const present = Object.keys(found.colOf).join(', ');
+    return {
+      ok: false,
+      message:
+        "Engagements sheet has no facilitators column. Headers seen: " +
+        present +
+        ". Rename one to 'Facilitators' (or 'Trainers' / 'Team') and try again.",
+    };
+  }
 
   const cell = sheet.getRange(found.row, facCol);
   const existing = String(cell.getValue() || '').trim();
@@ -2438,7 +2493,7 @@ function applyUpdateEngagementStatus_(edit) {
   if (!found) {
     return { ok: false, message: 'No engagement matched "' + (edit.engagement || '') + '".' };
   }
-  const statusCol = found.colOf['Status'] || found.colOf['Stage'];
+  const statusCol = findCol_(found.colOf, ['Status', 'Stage', 'State', 'Phase']);
   if (!statusCol) return { ok: false, message: 'Engagements sheet has no Status column.' };
   sheet.getRange(found.row, statusCol).setValue(edit.status || '');
   return {
@@ -2469,7 +2524,7 @@ function findFacilitatorRow_(query) {
 function applyAddFacilitatorNote_(edit) {
   const found = findFacilitatorRow_(edit.facilitator);
   if (!found) return { ok: false, message: 'No facilitator matched "' + (edit.facilitator || '') + '".' };
-  const noteCol = found.colOf['Notes'] || found.colOf['Internal Notes'];
+  const noteCol = findCol_(found.colOf, ['Notes', 'Internal Notes', 'Notes/Comments', 'Comments']);
   if (!noteCol) return { ok: false, message: 'Speaking Directory has no Notes column.' };
   const cell = found.sheet.getRange(found.row, noteCol);
   const existing = String(cell.getValue() || '').trim();
@@ -2483,7 +2538,10 @@ function applyUpdateFacilitatorField_(edit) {
   const found = findFacilitatorRow_(edit.facilitator);
   if (!found) return { ok: false, message: 'No facilitator matched "' + (edit.facilitator || '') + '".' };
   const field = String(edit.field || '').trim();
-  const col = found.colOf[field];
+  // Try the exact header first, then a case-insensitive lookup so the
+  // chatbot's "availability" works against a sheet column literally
+  // named "Availability".
+  const col = found.colOf[field] || findCol_(found.colOf, [field]);
   if (!col) {
     return { ok: false, message: 'No "' + field + '" column in the Speaking Directory.' };
   }
