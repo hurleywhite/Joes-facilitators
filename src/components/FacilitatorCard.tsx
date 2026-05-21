@@ -93,9 +93,10 @@ function availabilityDot(availability: string) {
     Unavailable: { color: "bg-red-500", label: "Unavailable" },
   };
   const c = config[availability] || config["Available"];
+  // Dots removed at operator's request — keep just the text label so the
+  // top-left corner of the card stays readable without the colored circle.
   return (
     <span className="inline-flex items-center gap-1.5" title={c.label}>
-      <span className={`w-2.5 h-2.5 rounded-full ${c.color} animate-pulse`} />
       <span className="text-xs text-gray-500">{c.label}</span>
     </span>
   );
@@ -131,16 +132,9 @@ export default function FacilitatorCard({ f }: { f: Facilitator }) {
                 (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name)}&backgroundColor=6366f1`;
               }}
             />
-            {/* Larger availability dot on avatar */}
-            <span
-              className={`absolute bottom-1 right-1 w-5 h-5 rounded-full border-[3px] border-white shadow ${
-                f.availability === "Available"
-                  ? "bg-green-500"
-                  : f.availability === "On Assignment"
-                    ? "bg-yellow-500"
-                    : "bg-red-500"
-              }`}
-            />
+            {/* Availability dot on avatar removed at operator's request —
+                the top-of-card "Available / On Assignment / Unavailable"
+                text label already conveys the status. */}
           </div>
 
           <div className="flex-1 min-w-0 pt-1">
