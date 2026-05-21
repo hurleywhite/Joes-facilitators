@@ -632,14 +632,174 @@ function bioQualityIssues_(bio, name) {
 /* PERSON ENRICHMENT (Apollo + Exa + Haiku)                     */
 /* ============================================================ */
 
+/**
+ * Refuse to enrich when the name alone is too generic to identify
+ * the person AND we have no LinkedIn URL or email to disambiguate.
+ * This is the single biggest source of wrong-person bios in the
+ * pool — "Jim", "Cat", "Skye", "Neel G" all collide with thousands
+ * of unrelated people on Apollo and Exa. Better an empty cell than
+ * a hallucinated bio about a stranger.
+ *
+ * Treats as ambiguous:
+ *   - Single-token names ("Cat", "Skye", "Jim")
+ *   - Single-letter trailing token ("Neel G", "Allie K", "John D.")
+ *   - Two-token names where the last token is <3 chars ("Neel Su")
+ *
+ * NOT ambiguous (full names that resolve cleanly):
+ *   - "Allie K. Miller"  (three tokens — middle initial is fine)
+ *   - "Anja Novković"
+ *   - "Hannah Feldberg-Dubin"
+ *   - "Neel Ganu"
+ */
+function nameIsAmbiguous_(name) {
+  if (!name) return true;
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return true;
+  // Multi-token: only ambiguous if the LAST token is too short to
+  // discriminate (single letter, "G", "G.", "K"). Middle initials are
+  // fine — "Allie K. Miller" has Miller as the last token.
+  const last = parts[parts.length - 1].replace(/[.,]$/, '');
+  if (last.length < 3) return true;
+  return false;
+}
+
+/**
+ * Fetch a public LinkedIn profile and extract Open Graph metadata as
+ * a ground-truth anchor. og:title is "<Full Name> - <Headline> | LinkedIn"
+ * so we can pull both the canonical name (catches "Jim" → "Jim Andrus")
+ * and the current role straight from the profile. og:description is
+ * the profile's bio snippet — the user's own self-description, which
+ * is the cleanest single source we have for what they do.
+ *
+ * Returns { name, headline, description, imageUrl } or null if the
+ * fetch failed / page didn't return OG tags / URL isn't LinkedIn.
+ *
+ * Note: LinkedIn rate-limits hard. This helper is cached per
+ * execution (so repeated calls during a single enrichment pass don't
+ * hammer LinkedIn) and falls back gracefully when LinkedIn returns
+ * a login wall or a 999.
+ */
+const _liOgCache_ = {};
+function lookupLinkedInOg_(url) {
+  if (!url || !/linkedin\.com\/in\//i.test(url)) return null;
+  const key = url.toLowerCase().trim();
+  if (_liOgCache_.hasOwnProperty(key)) return _liOgCache_[key];
+  try {
+    const resp = UrlFetchApp.fetch(url, {
+      method: 'get',
+      muteHttpExceptions: true,
+      followRedirects: true,
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (compatible; FacilitatorPoolBot/1.0; +https://joes-fac.vercel.app)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+    });
+    const code = resp.getResponseCode();
+    if (code !== 200) {
+      console.log('LinkedIn fetch HTTP ' + code + ' for ' + url);
+      _liOgCache_[key] = null;
+      return null;
+    }
+    const html = resp.getContentText();
+    const meta = function (prop) {
+      // Match both <meta property="og:title" content="..."> and the
+      // attribute order LinkedIn occasionally flips.
+      let re = new RegExp(
+        '<meta[^>]+property=["\\\']' + prop + '["\\\'][^>]+content=["\\\']([^"\\\']+)["\\\']',
+        'i'
+      );
+      let m = html.match(re);
+      if (m) return decodeHtmlEntities_(m[1].trim());
+      re = new RegExp(
+        '<meta[^>]+content=["\\\']([^"\\\']+)["\\\'][^>]+property=["\\\']' + prop + '["\\\']',
+        'i'
+      );
+      m = html.match(re);
+      return m ? decodeHtmlEntities_(m[1].trim()) : '';
+    };
+    const title       = meta('og:title');
+    const description = meta('og:description');
+    const imageUrl    = meta('og:image');
+    if (!title && !description) {
+      _liOgCache_[key] = null;
+      return null;
+    }
+    // og:title is "Full Name - Headline | LinkedIn" — strip the suffix
+    // and split on the first " - " to separate name from headline.
+    const clean = title.replace(/\s*\|\s*LinkedIn\s*$/i, '').trim();
+    const dashIdx = clean.indexOf(' - ');
+    const ogName     = dashIdx > 0 ? clean.slice(0, dashIdx).trim() : clean;
+    const ogHeadline = dashIdx > 0 ? clean.slice(dashIdx + 3).trim() : '';
+    const result = { name: ogName, headline: ogHeadline, description: description, imageUrl: imageUrl };
+    _liOgCache_[key] = result;
+    return result;
+  } catch (err) {
+    console.log('LinkedIn fetch error for ' + url + ': ' + err);
+    _liOgCache_[key] = null;
+    return null;
+  }
+}
+
+function decodeHtmlEntities_(s) {
+  if (!s) return s;
+  return String(s)
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#x27;/g, "'");
+}
+
 function enrichPerson_(name, linkedInUrl, email, location) {
+  // GUARD 1: ambiguous name + no hard ID → don't even try. Better an
+  // empty cell than a confidently-wrong bio about someone else.
+  if (nameIsAmbiguous_(name) && !linkedInUrl && !email) {
+    console.log('enrichPerson_: skipping "' + name + '" — ambiguous name, no LinkedIn/email.');
+    return null;
+  }
+
+  // GUARD 2: LinkedIn URL is the strongest identifier we have. Pull
+  // the OG metadata before anything else so we can:
+  //   a) verify Apollo's "person.linkedin_url" matches this slug,
+  //   b) use the og:title name as the canonical name (catches "Jim" →
+  //      "Jim Andrus"),
+  //   c) feed Haiku the og:description as authoritative ground truth.
+  const linkedInOg = linkedInUrl ? lookupLinkedInOg_(linkedInUrl) : null;
+  if (linkedInOg && linkedInOg.name && name) {
+    // og:title's last name MUST appear in the sheet name (or vice
+    // versa). If they disagree, the LinkedIn URL is wrong for this row
+    // and we'd produce a bio about a different person — bail out.
+    const sheetNameLower = name.toLowerCase();
+    const sheetLast = (name.split(/\s+/).pop() || '').toLowerCase().replace(/[.,]$/, '');
+    const ogLower = linkedInOg.name.toLowerCase();
+    const ogLast  = (linkedInOg.name.split(/\s+/).pop() || '').toLowerCase().replace(/[.,]$/, '');
+    const namesAlign =
+      ogLower.indexOf(sheetNameLower) !== -1 ||
+      sheetNameLower.indexOf(ogLower) !== -1 ||
+      (sheetLast.length >= 3 && ogLower.indexOf(sheetLast) !== -1) ||
+      (ogLast.length    >= 3 && sheetNameLower.indexOf(ogLast)  !== -1);
+    if (!namesAlign) {
+      console.log(
+        'LinkedIn mismatch: sheet="' + name +
+        '" og:title="' + linkedInOg.name + '" — skipping enrichment.'
+      );
+      return null;
+    }
+  }
+
   const apollo = lookupApollo_(name, linkedInUrl, email);
   const exa    = lookupExa_(name, linkedInUrl, apollo);
 
   let bio = '';
-  let bioSource = (exa && exa.url) ? exa.url : '';
+  let bioSource = (exa && exa.url) ? exa.url : (linkedInOg ? linkedInUrl : '');
 
-  const haiku = synthesizeWithClaude_(name, location, apollo, exa);
+  const haiku = synthesizeWithClaude_(name, location, apollo, exa, linkedInOg);
   if (haiku && haiku.status === 'ok' && haiku.text) {
     bio = haiku.text;
   } else {
@@ -650,6 +810,14 @@ function enrichPerson_(name, linkedInUrl, email, location) {
     // Haiku just rejected the page, looksLikeProse_ catches the same
     // patterns at the snippet level — so it's safe.
     bio = headlineFallback_(name, apollo);
+    // LinkedIn OG data is more authoritative than Exa for fallback —
+    // it came from the person's own profile, not a third-party page.
+    if (!bio && linkedInOg && linkedInOg.headline) {
+      bio = name + ' — ' + linkedInOg.headline + '.';
+    }
+    if (linkedInOg && linkedInOg.description && looksLikeProse_(linkedInOg.description)) {
+      bio = (bio ? bio + ' ' : '') + linkedInOg.description.trim();
+    }
     if (exa && exa.snippet && looksLikeProse_(exa.snippet)) {
       bio = (bio ? bio + ' ' : '') + exa.snippet;
     }
@@ -666,11 +834,27 @@ function enrichPerson_(name, linkedInUrl, email, location) {
   if (bio.length > 600) bio = bio.slice(0, 597).replace(/\s+\S*$/, '') + '...';
   if (!bio) return null;
 
+  // Photo URL: Apollo wins (higher res), but LinkedIn og:image is a
+  // good backup. The script's caller (enrichSpeakingDirRow_) won't
+  // overwrite an existing photoUrl cell, so this is safe even when
+  // Joe already pasted one in.
+  const photoUrl =
+    (apollo ? trimOrEmpty_(apollo.photo_url) : '') ||
+    (linkedInOg ? trimOrEmpty_(linkedInOg.imageUrl) : '');
+
+  // Headline for downstream industry extraction. Prefer Apollo's
+  // structured headline/title; fall back to LinkedIn's og:title
+  // headline portion so industry parsing has something to work with
+  // even when Apollo is empty.
+  const apolloHeadline = apollo
+    ? cleanHeadline_(trimOrEmpty_(apollo.headline) || trimOrEmpty_(apollo.title))
+    : (linkedInOg ? cleanHeadline_(linkedInOg.headline) : '');
+
   return {
     bio: bio,
     bioSource: bioSource,
-    photoUrl: apollo ? trimOrEmpty_(apollo.photo_url) : '',
-    apolloHeadline: apollo ? cleanHeadline_(trimOrEmpty_(apollo.headline) || trimOrEmpty_(apollo.title)) : ''
+    photoUrl: photoUrl,
+    apolloHeadline: apolloHeadline
   };
 }
 
@@ -799,14 +983,25 @@ function canonLinkedInSlug_(url) {
 /* CLAUDE HAIKU 4.5 — bio synthesis                             */
 /* ============================================================ */
 
-function synthesizeWithClaude_(name, location, apollo, exa) {
+function synthesizeWithClaude_(name, location, apollo, exa, linkedInOg) {
   const key = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
   if (!key) return { status: 'unavailable', text: '' };
-  if (!apollo && (!exa || !exa.text)) return { status: 'unavailable', text: '' };
+  if (!apollo && !linkedInOg && (!exa || !exa.text)) {
+    return { status: 'unavailable', text: '' };
+  }
 
   const lines = [];
   lines.push('NAME: ' + name);
   lines.push('LOCATION: ' + (location || '(unknown)'));
+  // LinkedIn OG metadata = GROUND TRUTH. It came from the person's own
+  // profile, not a third-party page. We feed it first so the model
+  // anchors on it, and tell the model in the system prompt that this
+  // section is authoritative for "who this person is and what they do".
+  if (linkedInOg) {
+    if (linkedInOg.name)        lines.push('LINKEDIN NAME (authoritative): ' + linkedInOg.name);
+    if (linkedInOg.headline)    lines.push('LINKEDIN HEADLINE (authoritative): ' + linkedInOg.headline);
+    if (linkedInOg.description) lines.push('LINKEDIN DESCRIPTION (authoritative): ' + linkedInOg.description);
+  }
   if (apollo) {
     if (apollo.headline)                                  lines.push('APOLLO HEADLINE: ' + apollo.headline);
     if (apollo.title)                                     lines.push('APOLLO TITLE: ' + apollo.title);
@@ -837,10 +1032,19 @@ function synthesizeWithClaude_(name, location, apollo, exa) {
     'You write brief, factual third-person bios for a workshop facilitator directory. ' +
     'Use ONLY information from the user message. Never invent claims, numbers, or credentials.\n\n' +
 
+    'GROUND TRUTH — if LINKEDIN NAME/HEADLINE/DESCRIPTION fields are present, ' +
+    "they are the authoritative anchor for who this person is and what they do. " +
+    "Build the bio around them. Cross-check every other source against them — " +
+    "if APOLLO TITLE or the SOURCE PAGE describes a different occupation than " +
+    "the LINKEDIN HEADLINE/DESCRIPTION (e.g. LinkedIn says 'AI Trainer' but " +
+    'the source page is about a tubist or a therapist), IGNORE the source ' +
+    'page entirely and write the bio from LinkedIn + Apollo only. When sources ' +
+    'CONFLICT, LinkedIn always wins.\n\n' +
+
     'GROUNDING RULE — every factual claim must trace to input text:\n' +
     '- Every job title, organization, book title, client name, credential, ' +
     'years-of-experience number, and "since YYYY" date you write MUST appear ' +
-    'verbatim in either APOLLO HEADLINE/TITLE/ORGANIZATION, APOLLO PAST EMPLOYERS, or the SOURCE PAGE text.\n' +
+    'verbatim in either LINKEDIN HEADLINE/DESCRIPTION, APOLLO HEADLINE/TITLE/ORGANIZATION, APOLLO PAST EMPLOYERS, or the SOURCE PAGE text.\n' +
     "- Do NOT infer client lists. If the source doesn't say 'clients including X, Y, Z', do not write that.\n" +
     "- Do NOT infer book authorship. If 'author of [book]' is not in the source, do not write it.\n" +
     "- Do NOT infer 'over N years of experience' unless that exact number is in the source.\n" +
@@ -848,10 +1052,11 @@ function synthesizeWithClaude_(name, location, apollo, exa) {
     '- When in doubt, write LESS, not more. A short two-sentence bio grounded in real text beats a longer one with one fabricated clause.\n\n' +
 
     'CRITICAL — when to refuse with NONE:\n' +
+    '- LINKEDIN HEADLINE/DESCRIPTION says one thing and APOLLO + SOURCE PAGE say something incompatibly different about WHO this person is. Refuse rather than blend.\n' +
     '- The SOURCE PAGE is about a DIFFERENT person with the same name (e.g. ' +
     'a therapist named Cynthia Castillo when the facilitator is also named ' +
     'Cynthia Castillo, or a tubist named Jim Andrus when the facilitator is ' +
-    'a recruiter). Look for occupation/context mismatch with APOLLO TITLE/ORGANIZATION.\n' +
+    'a recruiter). Look for occupation/context mismatch with LINKEDIN HEADLINE or APOLLO TITLE/ORGANIZATION.\n' +
     "- The SOURCE PAGE is community/forum chrome ('commented on the post', " +
     "'Miro Community Forum', 'New Here', 'Topics 0 Reply 1', 'View 6 Photos').\n" +
     "- The SOURCE PAGE is in a non-English language (Dutch, German, French " +
