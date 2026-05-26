@@ -112,30 +112,48 @@ Remember: WHEN IN DOUBT, RETURN NULL. Wrong information is worse than missing in
  */
 const DEFAULT_OPENAI_MODEL = "gpt-5.4";
 
+export type DocumentType = "transcript" | "email";
+
 export async function extractFromTranscript(
   apiKey: string,
   transcriptText: string,
   filename: string,
-  roster: Facilitator[]
+  roster: Facilitator[],
+  documentType: DocumentType = "transcript"
 ): Promise<TranscriptExtraction> {
   const rosterNames = roster.map((f) => f.name).join("\n");
 
   // Pre-compute the closest roster match from the FILENAME alone. Surface
   // it to the model as an explicit hint so it doesn't bail when the
-  // transcript body uses a nickname ("Mike" for "Mikhail") or a slightly
-  // different spelling ("Verbitskiy" vs "Verbitsky" — Russian
-  // transliteration). The model still has to verify the content is
-  // about this person; we just remove the "I can't match the name"
-  // dead-end when an obvious filename match exists.
+  // body uses a nickname ("Mike" for "Mikhail") or a slightly different
+  // spelling ("Verbitskiy" vs "Verbitsky" — Russian transliteration).
+  // The model still has to verify the content is about this person; we
+  // just remove the "I can't match the name" dead-end when an obvious
+  // filename match exists.
   const filenameHint = closestRosterFromFilename_(filename, roster);
   const hintLine = filenameHint
-    ? `\n# FILENAME HINT\nThe transcript filename closely matches the roster entry "${filenameHint.name}" (similarity ${filenameHint.score}%). If the transcript content is consistent with this person (you'll see them addressed, named, or speaking), use this EXACT roster name. If the content is clearly about someone else, ignore this hint.\n`
+    ? `\n# FILENAME HINT\nThe ${documentType} filename closely matches the roster entry "${filenameHint.name}" (similarity ${filenameHint.score}%). If the body content is consistent with this person (you'll see them addressed, named, signing, or speaking), use this EXACT roster name. If the content is clearly about someone else, ignore this hint.\n`
     : "";
+
+  const docLabel = documentType === "email" ? "EMAIL" : "TRANSCRIPT";
+  const emailHint =
+    documentType === "email"
+      ? `\n# EMAIL-SPECIFIC GUIDANCE
+- The email may have "From:", "To:", "Subject:" headers. Use them to identify the SENDER and RECIPIENTS.
+- The subject of extraction must still be a roster FACILITATOR. Cases:
+  - If the email is FROM a facilitator (look for their name in From/signature/first-person voice), treat first-person statements as factual about them.
+  - If the email is FROM Joe or another operator ABOUT a facilitator, extract from the third-person prose. Identify which roster facilitator is being discussed.
+- Email SIGNATURES often contain location, role, employer, phone. Treat the signature as a reliable source IF it belongs to a roster facilitator.
+- Do NOT extract facts about the sender if they aren't in the roster (e.g. a client introducing themselves is not a facilitator update).
+- A forwarded chain (text starting with "---------- Forwarded message ----------" or quoted ">") may discuss multiple people — only extract about the one roster facilitator who is the focus.
+- If the email is purely scheduling/logistics with no facts about a facilitator's profile (availability, location, role, etc.), return matchConfidence "none".
+`
+      : "";
 
   const userMessage = `# ROSTER OF KNOWN FACILITATORS
 ${rosterNames}
-${hintLine}
-# TRANSCRIPT (filename: ${filename})
+${hintLine}${emailHint}
+# ${docLabel} (filename: ${filename})
 ${transcriptText}
 
 Return the JSON extraction object now.`;
