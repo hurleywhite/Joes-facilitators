@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "facilitator-pool",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev", "-p", "3334"],
+      "port": 3334
+    }
+  ]
+}
