@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Facilitator } from "@/types/facilitator";
+import { parseLooseDate, describeIso } from "@/lib/loose-date";
 import { Check, Copy, ExternalLink, Mail, MessageSquare, X } from "lucide-react";
 
 /**
@@ -58,31 +59,89 @@ function firstNameOf(name: string) {
 
 /** Long enough for an inbox. */
 function emailBody(f: Facilitator, link: string, from: string, to: string, forWhat: string) {
-  const when = prettyRange(from, to) || "the dates below";
+  const when = prettyRange(from, to);
   const what = forWhat.trim();
-  return `${firstNameOf(f.name)} — are you around ${when}?${what ? ` It's for ${what}.` : ""}
+  return `Hi ${firstNameOf(f.name)},
 
-Quickest way to tell me is this, your name's already filled in:
+We're scoping a workshop${what ? ` for ${what}` : ""}${
+    when ? ` on ${when}` : ""
+  } and would really appreciate it if you joined.
+
+Are you free${when ? ` ${when}` : " then"}? Easiest way to let us know is this link — your name's already in it:
 ${link}
 
-A no is just as useful as a yes, so don't worry about saying it.`;
+If it's a no, that's just as useful to know.`;
 }
 
 function emailSubject(from: string, to: string, forWhat: string) {
   const when = prettyRange(from, to);
   const what = forWhat.trim();
-  if (what && when) return `${what}, ${when} — are you free?`;
+  if (what && when) return `${what} workshop, ${when} — are you free?`;
   if (when) return `Are you free ${when}?`;
   return "Are you free?";
 }
 
-/** Short enough for a DM or a text. */
+/** Short enough for a DM or a text, same voice. */
 function shortNote(f: Facilitator, link: string, from: string, to: string, forWhat: string) {
-  const when = prettyRange(from, to) || "the dates in here";
+  const when = prettyRange(from, to);
   const what = forWhat.trim();
-  return `${firstNameOf(f.name)} — any chance you're free ${when}?${
-    what ? ` It's a ${what} job.` : ""
-  } Quickest way to tell me: ${link} (your name's already in it). A no is fine too.`;
+  return `Hi ${firstNameOf(f.name)} — we're scoping a workshop${
+    what ? ` for ${what}` : ""
+  }${when ? ` on ${when}` : ""} and would really appreciate it if you joined.
+
+Are you free${when ? ` ${when}` : " then"}? Easiest way to let us know: ${link} — your name's already in it. If it's a no, that's just as useful.`;
+}
+
+/**
+ * Date field you can type into.
+ *
+ * A native date input makes you fill three boxes in the browser's locale
+ * order to say a date you already know. This takes "July 5th", "5 Jul",
+ * "7/5" or an ISO date, assumes the next time that date comes round when
+ * no year is given, and prints back what it understood so a typo is
+ * caught before anything is sent.
+ */
+function DateField({
+  label,
+  text,
+  onText,
+  isoValue,
+  min,
+}: {
+  label: string;
+  text: string;
+  onText: (v: string) => void;
+  isoValue: string | null;
+  min?: string | null;
+}) {
+  const typed = text.trim().length > 0;
+  const unparsed = typed && !isoValue;
+  const beforeMin = !!(isoValue && min && isoValue < min);
+  return (
+    <label className="block">
+      <span className="eyebrow">{label}</span>
+      <input
+        type="text"
+        value={text}
+        onChange={(e) => onText(e.target.value)}
+        placeholder="July 5th"
+        className={`mt-1 w-full rounded-md border px-2.5 py-1.5 text-sm transition-colors ${
+          unparsed || beforeMin
+            ? "border-warn-200 bg-warn-50 text-warn-700"
+            : "border-ink-200"
+        }`}
+      />
+      <span className="mt-0.5 block text-[11px] text-ink-500">
+        {unparsed
+          ? "Didn't catch that date"
+          : beforeMin
+            ? "That's before the first day"
+            : isoValue
+              ? describeIso(isoValue)
+              : "\u00a0"}
+      </span>
+    </label>
+  );
 }
 
 function Btn({
@@ -205,9 +264,15 @@ export default function AskForDates({
   people: Facilitator[];
   onClose: () => void;
 }) {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [fromText, setFromText] = useState("");
+  const [toText, setToText] = useState("");
   const [forWhat, setForWhat] = useState("");
+
+  const from = useMemo(() => parseLooseDate(fromText) ?? "", [fromText]);
+  const toParsed = useMemo(() => parseLooseDate(toText) ?? "", [toText]);
+  // A last day before the first is a typo, not a range — drop it rather
+  // than build links that say "3 March – 3 February".
+  const to = toParsed && from && toParsed < from ? "" : toParsed;
 
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const rows = useMemo(
@@ -245,25 +310,19 @@ export default function AskForDates({
 
         <div className="space-y-4 px-5 py-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <label className="block">
-              <span className="eyebrow">First day</span>
-              <input
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className="tnum mt-1 w-full rounded-md border border-ink-200 px-2.5 py-1.5 text-sm"
-              />
-            </label>
-            <label className="block">
-              <span className="eyebrow">Last day</span>
-              <input
-                type="date"
-                value={to}
-                min={from || undefined}
-                onChange={(e) => setTo(e.target.value)}
-                className="tnum mt-1 w-full rounded-md border border-ink-200 px-2.5 py-1.5 text-sm"
-              />
-            </label>
+            <DateField
+              label="First day"
+              text={fromText}
+              onText={setFromText}
+              isoValue={from || null}
+            />
+            <DateField
+              label="Last day"
+              text={toText}
+              onText={setToText}
+              isoValue={toParsed || null}
+              min={from || null}
+            />
             <label className="block">
               <span className="eyebrow">What for</span>
               <input
@@ -273,6 +332,7 @@ export default function AskForDates({
                 placeholder="Tamkeen"
                 className="mt-1 w-full rounded-md border border-ink-200 px-2.5 py-1.5 text-sm"
               />
+              <span className="mt-0.5 block text-[11px] text-ink-500">&nbsp;</span>
             </label>
           </div>
 
