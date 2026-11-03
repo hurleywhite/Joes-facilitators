@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { fetchFromGoogleSheet, toGoogleSheetCsvUrl } from "@/data/sheets";
 import { dummyFacilitators } from "@/data/dummy-facilitators";
-import { getPhotoUrl } from "@/data/photo-map";
+import { getPhotoUrl, getRepairedPhoto } from "@/data/photo-map";
 import { Facilitator } from "@/types/facilitator";
-import { resolveCoords } from "@/lib/geocode";
+import { resolveCoords, lookupCity } from "@/lib/geocode";
 import { generateBio } from "@/lib/bio-enrich";
 import { fetchLinkedInMetadata } from "@/lib/linkedin-enrich";
 import {
@@ -56,7 +56,12 @@ async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
           : null;
 
       // Photo: spreadsheet > LinkedIn og:image > local photo map > DiceBear
+      // getRepairedPhoto comes first, but it only answers for the
+      // handful of people whose sheet URL is a verified-dead LinkedIn
+      // signed link. For everyone else it returns null and the sheet
+      // wins exactly as before.
       const photoUrl =
+        getRepairedPhoto(f.linkedinUrl) ||
         f.photoUrl ||
         liData?.imageUrl ||
         getPhotoUrl(f.linkedinUrl, f.name);
@@ -64,6 +69,17 @@ async function enrich(facilitators: Facilitator[]): Promise<Facilitator[]> {
       // Coords
       let lat = f.lat;
       let lng = f.lng;
+      // The curated table beats the sheet when it recognises the place.
+      // The sheet's Lat/Lng was filled by a geocoder that resolved
+      // "NY, NY" to the centroid of New York *State* — six people pinned
+      // in the Adirondacks, ~250km from Manhattan, while four others
+      // written as "NYC" sat correctly downtown. Same precedent as
+      // `region`, which already overrides stale sheet values below.
+      const curated = f.location ? lookupCity(f.location) : null;
+      if (curated) {
+        lat = curated.lat;
+        lng = curated.lng;
+      }
       if ((!lat || lat === 0) && f.location) {
         const coords = await resolveCoords(f.location, false);
         if (coords) {

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { Facilitator } from "@/types/facilitator";
+import { isApproximateLocation } from "@/lib/geocode";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -77,68 +78,84 @@ export default function MapView({
       }
     });
 
-    // Add markers — skip facilitators without real coordinates so they don't
-    // pile up on Null Island (0, 0) in the Atlantic. Treats blank/NaN/zero
-    // coords as "unknown location" and just hides them from the map (they
-    // still appear in the grid view).
-    facilitators.forEach((f) => {
-      if (
-        !Number.isFinite(f.lat) ||
-        !Number.isFinite(f.lng) ||
-        (f.lat === 0 && f.lng === 0)
-      ) {
-        return;
-      }
-      const color = focusColor(f.focus);
-      const radius = experienceSize(f.experienceLevel);
+    // One marker per LOCATION, not per person.
+    //
+    // Six people written as "NY, NY" share a single coordinate, six more
+    // share "US", three share "London" — roughly 25 of the 84 were
+    // stacked under 6 pins, and only the last one drawn was clickable.
+    // Everyone else was invisible and unreachable. Grouping makes the
+    // count legible and puts every name in the popup.
+    const esc = (x: string | undefined) =>
+      (x || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
-      const marker = L.circleMarker([f.lat, f.lng], {
+    const groups = new Map<string, Facilitator[]>();
+    for (const f of facilitators) {
+      if (!Number.isFinite(f.lat) || !Number.isFinite(f.lng)) continue;
+      if (f.lat === 0 && f.lng === 0) continue; // no location on file
+      const key = `${f.lat.toFixed(3)},${f.lng.toFixed(3)}`;
+      const arr = groups.get(key);
+      if (arr) arr.push(f);
+      else groups.set(key, [f]);
+    }
+
+    for (const people of groups.values()) {
+      const [head] = people;
+      const n = people.length;
+      // A pin only means one hue when everyone under it shares a focus.
+      const focuses = new Set(people.map((f) => f.focus));
+      const color = focuses.size === 1 ? focusColor(head.focus) : "#4e5863";
+      // Country-level coordinates are a centroid, not a place. Drawn
+      // hollow so a dot in the middle of the Netherlands isn't read as
+      // "they are in Amsterdam".
+      const approx = isApproximateLocation(head.location);
+      const radius =
+        n > 1 ? Math.min(9 + Math.sqrt(n) * 2.6, 20) : experienceSize(head.experienceLevel);
+
+      const marker = L.circleMarker([head.lat, head.lng], {
         radius,
-        fillColor: color,
-        color: "#fff",
-        weight: 2,
+        fillColor: approx ? "#ffffff" : color,
+        color: approx ? color : "#fff",
+        weight: approx ? 2.5 : 2,
+        dashArray: approx ? "3 2" : undefined,
         opacity: 1,
-        fillOpacity: 0.85,
+        fillOpacity: approx ? 0.75 : 0.85,
       }).addTo(map);
 
-      const completedCount = f.engagements.filter(
-        (e) => e.status === "Completed"
-      ).length;
-
-      // Map popup — minimal HTML escaping. The fields originate from the
-      // sheet so we trust them, but we still strip quotes to keep the
-      // attribute injection from breaking on names like O'Brien.
-      const esc = (s: string | undefined) =>
-        (s || "").replace(/"/g, "&quot;").replace(/</g, "&lt;");
-      const links: string[] = [];
-      if (f.linkedinUrl) {
-        links.push(
-          `<a href="${esc(f.linkedinUrl)}" target="_blank" rel="noopener" style="font-size:11px;color:#1a5584;text-decoration:none;">LinkedIn →</a>`
-        );
-      }
-      if (f.demoVideoUrl) {
-        links.push(
-          `<a href="${esc(f.demoVideoUrl)}" target="_blank" rel="noopener" style="font-size:11px;color:#4e5863;text-decoration:none;">▶ Watch demo</a>`
-        );
+      if (n > 1) {
+        marker.bindTooltip(String(n), {
+          permanent: true,
+          direction: "center",
+          className: "fp-count",
+        });
       }
 
-      marker.bindPopup(`
-        <div style="min-width:200px;font-family:system-ui,sans-serif;">
-          <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${esc(f.name)}</div>
-          <div style="color:#6c7684;font-size:12px;margin-bottom:6px;">${esc(f.location)}</div>
-          <div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;">
-            <span style="background:${color}20;color:${color};padding:2px 6px;border-radius:10px;font-size:11px;font-weight:500;">${esc(f.focus) || "Focus TBD"}</span>
-            <span style="background:#eef0f3;color:#3a424c;padding:2px 6px;border-radius:10px;font-size:11px;font-weight:500;">${f.experienceLevel}</span>
+      const rows = people
+        .map((f) => {
+          const done = f.engagements.filter((e) => e.status === "Completed").length;
+          const bits = [f.focus || "Focus not set", `${f.experienceLevel} tier`];
+          if (done) bits.push(`${done} delivered`);
+          return `<div style="padding:5px 0;border-top:1px solid #eef0f3;">
+            <div style="font-weight:600;font-size:13px;color:#171b21;">${esc(f.name)}</div>
+            <div style="font-size:11px;color:#6c7684;">${esc(bits.join(" · "))}</div>
+          </div>`;
+        })
+        .join("");
+
+      marker.bindPopup(
+        `<div style="min-width:210px;max-height:260px;overflow-y:auto;">
+          <div style="font-weight:600;font-size:13px;color:#171b21;">${esc(head.location) || "Location not set"}</div>
+          <div style="font-size:11px;color:#99a2ae;margin-bottom:2px;">
+            ${n} ${n === 1 ? "person" : "people"}${approx ? " · approximate, country-level only" : ""}
           </div>
-          <div style="font-size:11px;color:#99a2ae;margin-bottom:6px;">${completedCount} engagement${completedCount !== 1 ? "s" : ""} completed</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">${links.join("")}</div>
-        </div>
-      `);
+          ${rows}
+        </div>`,
+        { maxWidth: 280 }
+      );
 
-      if (onSelectFacilitator) {
-        marker.on("click", () => onSelectFacilitator(f));
+      if (onSelectFacilitator && n === 1) {
+        marker.on("click", () => onSelectFacilitator(head));
       }
-    });
+    }
   }, [facilitators, onSelectFacilitator]);
 
   return (

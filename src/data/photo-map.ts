@@ -64,3 +64,47 @@ export function getPhotoUrl(linkedinUrl: string, name: string): string {
   // Fallback: DiceBear initials with a cleaner color palette
   return `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=4f46e5,7c3aed,a855f7,06b6d4,059669&fontWeight=600&textColor=ffffff`;
 }
+
+/**
+ * Photos re-sourced because the sheet's own URL stopped loading.
+ *
+ * 22 of the 84 Photo URL cells pointed at LinkedIn CDN links that now
+ * return 401, 403 or 404 — they are signed URLs and the signatures have
+ * expired. Those people were rendering as initials.
+ *
+ * These 15 were recovered through Apollo (which the enrichment script
+ * already uses) and downloaded into /public/photos, so they are served
+ * from our own origin and cannot expire again. LinkedIn itself rate-
+ * limits this environment, so og:image scraping was not an option.
+ *
+ * Keyed by LinkedIn username, and consulted BEFORE the sheet's Photo URL
+ * — but only for these names. Everyone whose sheet photo still loads is
+ * untouched, and so is every entry in linkedinToPhoto above.
+ */
+const repairedPhotos: Record<string, string> = {
+  arshadwala: "/photos/arshad-wala.jpg", // Arshad Wala
+  ashleymsmallwood: "/photos/ashley-smallwood.jpg", // Ashley Smallwood
+  "ben-andrews-64817319": "/photos/ben-andrews.jpg", // Ben Andrews
+  "cornelius-lee-859b899a": "/photos/cornelius-lee.jpg", // Cornelius Lee
+  emiliaastrom: "/photos/emilia-astrom.jpg", // Emilia Åström
+  "hannah-feldberg-dubin-41a51345": "/photos/hannah-feldberg-dubin.jpg", // Hannah Feldberg-Dubin
+  jwisdom: "/photos/jason-wisdom.jpg", // Jason Wisdom
+  jimandrus: "/photos/jim-andrus.jpg", // Jim Andrus
+  jimralley: "/photos/jim-ralley.jpg", // Jim Ralley
+  "kabrielle-mcgee": "/photos/kabrielle-mcgee.jpg", // Kabrielle McGee
+  zeislerconsulting: "/photos/nicholas-zeisler.jpg", // Nicholas Zeisler
+  "ryan-mcmanus-8427ab": "/photos/ryan-mcmannus.jpg", // Ryan McMannus
+  sharibare: "/photos/shari-bare.jpg", // Shari Bare
+  sonyapillay: "/photos/sonya-pillay.jpg", // Sonya Pillay
+  victoriacarr: "/photos/victoria-carr.jpg", // Victoria Carr
+};
+
+/**
+ * A locally hosted replacement for a facilitator whose sheet photo is
+ * known to be dead, or null if the sheet's photo should be used as-is.
+ */
+export function getRepairedPhoto(linkedinUrl: string): string | null {
+  const m = (linkedinUrl || "").toLowerCase().match(/linkedin\.com\/in\/([^/?#]+)/);
+  if (!m) return null;
+  return repairedPhotos[m[1]] ?? null;
+}

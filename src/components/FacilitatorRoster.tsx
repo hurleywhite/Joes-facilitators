@@ -178,7 +178,7 @@ function Row({
       </td>
 
       {/* Track record */}
-      <td className="px-3 py-2.5 pr-4 text-right">
+      <td className="whitespace-nowrap px-3 py-2.5 pr-4 text-right">
         {f.currentEngagement ? (
           <span className="block truncate text-xs font-medium text-ink-800">
             {f.currentEngagement}
@@ -261,7 +261,7 @@ export default function FacilitatorRoster({
               >
                 Languages
               </th>
-              <th scope="col" className="eyebrow px-3 py-2 pr-4 text-right">
+              <th scope="col" className="eyebrow w-[10%] whitespace-nowrap px-3 py-2 pr-4 text-right">
                 Work
               </th>
             </tr>

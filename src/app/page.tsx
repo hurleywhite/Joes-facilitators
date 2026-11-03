@@ -203,6 +203,12 @@ export default function Home() {
   // reported it as live fact. We don't have anyone's calendar, so the
   // header states the two things we can stand behind: how many people are
   // on the bench, and when we last read the sheet.
+  // People the map physically cannot place: no location in the sheet, so
+  // no coordinate. They were simply absent from the map with nothing said.
+  const unplaced = filtered.filter(
+    (f) => !Number.isFinite(f.lat) || !Number.isFinite(f.lng) || (f.lat === 0 && f.lng === 0)
+  ).length;
+
   const headerStatus = facilitators.length
     ? `${facilitators.length} on the bench${
         syncedAt
@@ -314,27 +320,50 @@ export default function Home() {
                     <MapView facilitators={filtered} />
                   </div>
                 </div>
-                {/* Pins are coloured by focus, not availability. An
-                    earlier version of this legend described availability,
-                    which the map has never shown. */}
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-ink-200 bg-white px-4 py-2.5 text-xs text-ink-600">
-                  <span className="eyebrow">Pin colour</span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-arctic-500" />
-                    Facilitation
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-arctic-300" />
-                    Tech
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-arctic-800" />
-                    Both
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-ink-400" />
-                    Focus not set
-                  </span>
+                {/* Pins are coloured by focus, not availability — an
+                    earlier legend here described availability, which the
+                    map has never shown. The rest of the legend exists
+                    because the map now tells the truth about its own
+                    precision instead of implying every dot is a street. */}
+                <div className="space-y-1.5 rounded-lg border border-ink-200 bg-white px-4 py-2.5 text-xs text-ink-600">
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                    <span className="eyebrow">Pin colour</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-arctic-500" />
+                      Facilitation
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-arctic-300" />
+                      Tech
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-arctic-800" />
+                      Both
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-ink-500" />
+                      Mixed or not set
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-ink-100 pt-1.5">
+                    <span className="eyebrow">Pin shape</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full border-2 border-dashed border-arctic-500 bg-white" />
+                      Country-level only, not a city
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-arctic-500 text-[8px] font-bold text-white">
+                        6
+                      </span>
+                      Several people at one spot — click for the list
+                    </span>
+                    {unplaced > 0 && (
+                      <span className="tnum ml-auto text-ink-500">
+                        {unplaced} of {facilitators.length} have no location on
+                        file and aren&apos;t on the map
+                      </span>
+                    )}
+                  </div>
                 </div>
               </Suspense>
             )}

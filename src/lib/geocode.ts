@@ -35,6 +35,9 @@ const cityLookup: Record<string, { lat: number; lng: number }> = {
   switzerland: { lat: 47.3769, lng: 8.5417 },
   uk: { lat: 51.5074, lng: -0.1278 },
   "(us)": { lat: 39.8283, lng: -98.5795 }, // geographic center
+  us: { lat: 39.8283, lng: -98.5795 },
+  usa: { lat: 39.8283, lng: -98.5795 },
+  "united states": { lat: 39.8283, lng: -98.5795 },
   "(canada/eu)": { lat: 45.4215, lng: -75.6972 }, // Ottawa default
   // USA
   "san francisco": { lat: 37.7749, lng: -122.4194 },
@@ -222,4 +225,28 @@ export async function resolveCoords(
     return await geocodeNominatim(location);
   }
   return null;
+}
+
+
+/**
+ * Locations that name a country or a whole state rather than a place.
+ *
+ * These still get a coordinate so the person appears, but it is a
+ * country centroid, not where they are. The map draws them differently
+ * so a dot in the middle of the Netherlands is not read as Amsterdam.
+ */
+const APPROXIMATE = new Set([
+  "us", "usa", "united states", "(us)", "uk", "canada", "canada/eu",
+  "(canada/eu)", "netherlands", "germany", "italy", "spain", "portugal",
+  "sweden", "switzerland", "kenya", "argentina", "south africa",
+  "australia", "india", "brazil", "mexico", "france", "ireland",
+]);
+
+export function isApproximateLocation(location: string): boolean {
+  const key = (location || "").toLowerCase().trim();
+  if (!key) return true;
+  if (APPROXIMATE.has(key)) return true;
+  // "NY, NY" is a city; "New York" alone, or any bare single token that
+  // names a country, is not precise enough to pin to a street.
+  return !key.includes(",") && APPROXIMATE.has(key.split("/")[0].trim());
 }
