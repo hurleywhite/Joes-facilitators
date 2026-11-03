@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Loader2, Check, AlertCircle, Plus, X } from "lucide-react";
 
 /**
@@ -19,10 +20,43 @@ type Travel = "Yes" | "Domestic" | "No";
 const CURRENT_YEAR = new Date().getFullYear();
 
 export default function AvailabilityPage() {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  return (
+    <Suspense fallback={null}>
+      <AvailabilityForm />
+    </Suspense>
+  );
+}
+
+function AvailabilityForm() {
+  // Prefilled from the link the operator sends. The name matters more
+  // than it looks: data/availability.ts joins submissions back to the
+  // Speaking Directory on an exact lowercased full-name match, so
+  // "Andy Hagerman" typed as "Andrew Hagerman" silently orphans the
+  // answer — it lands in the sheet and never appears on the roster.
+  // Prefilling from the roster record removes that whole failure mode.
+  const params = useSearchParams();
+  const askedName = (params.get("name") || "").trim();
+  const askedFrom = (params.get("from") || "").trim();
+  const askedTo = (params.get("to") || "").trim();
+  const askedFor = (params.get("for") || "").trim();
+  const [first0, ...rest0] = askedName.split(/\s+/).filter(Boolean);
+
+  const [firstName, setFirstName] = useState(first0 ?? "");
+  const [lastName, setLastName] = useState(rest0.join(" "));
   const [mode, setMode] = useState<Mode>("rest_of_year");
-  const [year, setYear] = useState<number>(CURRENT_YEAR);
+  // Match the year we're actually asking about. Without this, a link for
+  // 3–5 March 2027 opens a form defaulted to the current year, and a
+  // facilitator who just hits submit files a perfectly valid answer
+  // against the wrong year — one that doesn't cover the dates anyone
+  // asked about. The picker still only offers this year and next, so an
+  // out-of-range date falls back rather than creating an unselectable
+  // value.
+  const askedYear = Number(askedFrom.slice(0, 4));
+  const [year, setYear] = useState<number>(
+    askedYear === CURRENT_YEAR || askedYear === CURRENT_YEAR + 1
+      ? askedYear
+      : CURRENT_YEAR
+  );
   // Multi-select quarters. Past quarters in the current year are hidden,
   // so the initial selection picks the next quarter that hasn't ended.
   const [quarters, setQuarters] = useState<Set<number>>(
@@ -154,11 +188,33 @@ export default function AvailabilityPage() {
           </h1>
           <p className="text-sm text-ink-600 mt-2 leading-relaxed">
             Let the ArcticMind team know when you&apos;re open to facilitate
-            engagements. We&apos;ll match you with the right engagements. You
-            can update this any time — your latest submission overwrites the
-            previous one.
+            engagements. You can update this any time — your latest
+            submission replaces the previous one.
           </p>
         </header>
+
+        {/* The specific ask, when the link carries one. A generic "tell us
+            your year" gets ignored; "can you do these three days, for this
+            client" gets answered. Nobody on the bench has ever submitted
+            through the generic link, so this is the part that matters. */}
+        {askedFrom && (
+          <div className="rounded-lg border border-arctic-200 bg-arctic-50 px-4 py-3">
+            <p className="text-sm text-arctic-900">
+              <span className="font-semibold">
+                {askedFor
+                  ? `We're asking about ${askedFor}.`
+                  : "We have something specific in mind."}
+              </span>{" "}
+              The dates are{" "}
+              <span className="font-semibold">{formatAsked(askedFrom, askedTo)}</span>.
+            </p>
+            <p className="mt-1 text-xs text-arctic-800">
+              Answer below for that window and anything else you already know.
+              If those dates don&apos;t work, say so in the notes — that&apos;s
+              just as useful to us.
+            </p>
+          </div>
+        )}
 
         {/* Name */}
         <div className="grid grid-cols-2 gap-3">
@@ -563,4 +619,27 @@ function quarterLabel(year: number, q: number): string {
   ];
   const [start, end] = months[q - 1];
   return `${start} 1, ${year} – ${end} 30/31, ${year}`;
+}
+
+/** "3–5 March 2027", or a single day when from === to. */
+function formatAsked(from: string, to: string): string {
+  const d = (iso: string) => new Date(iso + "T00:00:00Z");
+  const valid = (x: Date) => !Number.isNaN(x.getTime());
+  const a = d(from);
+  if (!valid(a)) return from;
+  const long = (x: Date) =>
+    x.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  if (!to || to === from) return long(a);
+  const b = d(to);
+  if (!valid(b)) return long(a);
+  // Same month and year reads better collapsed: "3–5 March 2027".
+  if (a.getUTCMonth() === b.getUTCMonth() && a.getUTCFullYear() === b.getUTCFullYear()) {
+    return `${a.getUTCDate()}–${long(b)}`;
+  }
+  return `${long(a)} – ${long(b)}`;
 }

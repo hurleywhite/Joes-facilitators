@@ -8,7 +8,8 @@ import FacilitatorRoster from "@/components/FacilitatorRoster";
 import FilterBar, { View } from "@/components/FilterBar";
 import StatsBar from "@/components/StatsBar";
 import AppHeader, { HeaderButton } from "@/components/AppHeader";
-import { RefreshCw } from "lucide-react";
+import AskForDates from "@/components/AskForDates";
+import { RefreshCw, CalendarPlus, X } from "lucide-react";
 import FacilitatorDrawer from "@/components/FacilitatorDrawer";
 
 const MapView = lazy(() => import("@/components/MapView"));
@@ -46,6 +47,26 @@ export default function Home() {
   const [drawerFacilitator, setDrawerFacilitator] = useState<Facilitator | null>(
     null
   );
+  // Who you're about to ask about dates. Kept by id so the set survives
+  // the 60s auto-refresh replacing every facilitator object.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [asking, setAsking] = useState(false);
+
+  const toggleOne = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleMany = useCallback((ids: string[], select: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) select ? next.add(id) : next.delete(id);
+      return next;
+    });
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -272,6 +293,9 @@ export default function Home() {
               <FacilitatorRoster
                 facilitators={filtered}
                 onOpen={setDrawerFacilitator}
+                selected={selected}
+                onToggle={toggleOne}
+                onToggleAll={toggleMany}
               />
             )}
 
@@ -337,6 +361,43 @@ export default function Home() {
             : "Pool Data"}
         </div>
       </footer>
+
+      {/* Nobody on the bench has ever submitted availability, so the
+          roster can't answer "who's free in March". The missing piece was
+          never the form — it was a way to ask particular people about
+          particular dates. */}
+      {selected.size > 0 && (
+        <div className="sticky bottom-0 z-40 border-t border-ink-200 bg-white/95 backdrop-blur-sm">
+          <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-4 py-2.5 sm:px-6">
+            <span className="tnum text-sm text-ink-700">
+              <span className="font-semibold">{selected.size}</span> selected
+            </span>
+            <button
+              type="button"
+              onClick={() => setAsking(true)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-arctic-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-arctic-700"
+            >
+              <CalendarPlus className="h-3.5 w-3.5" />
+              Ask about dates
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelected(new Set())}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900"
+            >
+              <X className="h-3.5 w-3.5" />
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {asking && (
+        <AskForDates
+          people={facilitators.filter((f) => selected.has(f.id))}
+          onClose={() => setAsking(false)}
+        />
+      )}
 
       <FacilitatorDrawer
         facilitator={drawerFacilitator}

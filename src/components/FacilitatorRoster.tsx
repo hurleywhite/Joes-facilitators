@@ -67,9 +67,13 @@ function AvatarFallback({ f, size = 32 }: { f: Facilitator; size?: number }) {
 function Row({
   f,
   onOpen,
+  selected,
+  onToggle,
 }: {
   f: Facilitator;
   onOpen: (f: Facilitator) => void;
+  selected: boolean;
+  onToggle: (id: string) => void;
 }) {
   const avail = statedAvailability(f);
   const done = f.engagements.filter((e) => e.status === "Completed").length;
@@ -79,10 +83,22 @@ function Row({
   return (
     <tr
       onClick={() => onOpen(f)}
-      className="group cursor-pointer border-b border-ink-100 align-middle transition-colors last:border-0 hover:bg-arctic-50/60"
+      className={`group cursor-pointer border-b border-ink-100 align-middle transition-colors last:border-0 ${
+        selected ? "bg-arctic-50" : "hover:bg-arctic-50/60"
+      }`}
     >
+      <td className="w-9 pl-4 pr-0" onClick={(e) => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggle(f.id)}
+          aria-label={`Select ${f.name}`}
+          className="h-3.5 w-3.5 cursor-pointer accent-arctic-600"
+        />
+      </td>
+
       {/* Person */}
-      <td className="py-2.5 pl-4 pr-3">
+      <td className="py-2.5 pl-2 pr-3">
         <div className="flex items-center gap-2.5">
           <Avatar f={f} />
           <AvatarFallback f={f} />
@@ -187,17 +203,38 @@ function Row({
 export default function FacilitatorRoster({
   facilitators,
   onOpen,
+  selected,
+  onToggle,
+  onToggleAll,
 }: {
   facilitators: Facilitator[];
   onOpen: (f: Facilitator) => void;
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+  onToggleAll: (ids: string[], select: boolean) => void;
 }) {
+  const ids = facilitators.map((f) => f.id);
+  const allOn = ids.length > 0 && ids.every((id) => selected.has(id));
+  const someOn = !allOn && ids.some((id) => selected.has(id));
   return (
     <div className="overflow-hidden rounded-lg border border-ink-200 bg-white">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] border-collapse text-left">
           <thead>
             <tr className="border-b border-ink-200 bg-ink-50">
-              <th scope="col" className="eyebrow py-2 pl-4 pr-3 text-left">
+              <th scope="col" className="w-9 pl-4 pr-0">
+                <input
+                  type="checkbox"
+                  checked={allOn}
+                  ref={(el) => {
+                    if (el) el.indeterminate = someOn;
+                  }}
+                  onChange={() => onToggleAll(ids, !allOn)}
+                  aria-label={allOn ? "Clear selection" : "Select everyone shown"}
+                  className="h-3.5 w-3.5 cursor-pointer accent-arctic-600"
+                />
+              </th>
+              <th scope="col" className="eyebrow py-2 pl-2 pr-3 text-left">
                 Facilitator
               </th>
               <th scope="col" className="eyebrow px-3 py-2 text-left">
@@ -231,7 +268,13 @@ export default function FacilitatorRoster({
           </thead>
           <tbody>
             {facilitators.map((f) => (
-              <Row key={f.id} f={f} onOpen={onOpen} />
+              <Row
+                key={f.id}
+                f={f}
+                onOpen={onOpen}
+                selected={selected.has(f.id)}
+                onToggle={onToggle}
+              />
             ))}
           </tbody>
         </table>
