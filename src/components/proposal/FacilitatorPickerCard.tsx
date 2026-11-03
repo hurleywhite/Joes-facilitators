@@ -14,18 +14,18 @@ export default function FacilitatorPickerCard({
 }) {
   const availColor =
     f.availability === "Available"
-      ? "bg-green-500"
+      ? "bg-ok-600"
       : f.availability === "On Assignment"
-        ? "bg-yellow-500"
-        : "bg-red-500";
+        ? "bg-warn-600"
+        : "bg-stop-600";
 
   return (
     <button
       onClick={onToggle}
       className={`text-left bg-white border-2 rounded-xl p-4 transition-all hover:shadow-md ${
         selected
-          ? "border-indigo-500 ring-2 ring-indigo-200"
-          : "border-gray-200 hover:border-gray-300"
+          ? "border-arctic-500 ring-2 ring-arctic-200"
+          : "border-ink-200 hover:border-ink-300"
       }`}
     >
       <div className="flex items-start gap-3">
@@ -33,12 +33,12 @@ export default function FacilitatorPickerCard({
           <img
             src={
               f.photoUrl ||
-              `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name)}`
+              `https://api.dicebear.com/7.x/initials/svg?textColor=1a5584&seed=${encodeURIComponent(f.name)}`
             }
             alt={f.name}
-            className="w-12 h-12 rounded-full object-cover border-2 border-gray-100 bg-indigo-100"
+            className="w-12 h-12 rounded-full object-cover border-2 border-ink-100 bg-arctic-100"
             onError={(e) => {
-              (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name)}`;
+              (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?textColor=1a5584&seed=${encodeURIComponent(f.name)}`;
             }}
           />
           <span
@@ -49,7 +49,7 @@ export default function FacilitatorPickerCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 min-w-0">
-              <h3 className="font-semibold text-gray-900 text-sm truncate">
+              <h3 className="font-semibold text-ink-900 text-sm truncate">
                 {f.name}
               </h3>
               {f.demoVideoUrl && (
@@ -58,7 +58,7 @@ export default function FacilitatorPickerCard({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="text-red-600 hover:text-red-800 flex-shrink-0"
+                  className="text-stop-600 hover:text-stop-700 flex-shrink-0"
                   title="Watch demo video"
                 >
                   <PlayCircle className="w-4 h-4" />
@@ -67,20 +67,20 @@ export default function FacilitatorPickerCard({
             </div>
             <span
               className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-                selected ? "bg-indigo-600 text-white" : "bg-gray-100 text-transparent"
+                selected ? "bg-arctic-600 text-white" : "bg-ink-100 text-transparent"
               }`}
             >
               <Check className="w-3 h-3" />
             </span>
           </div>
-          <div className="text-xs text-gray-500 mt-0.5">{f.location}</div>
+          <div className="text-xs text-ink-500 mt-0.5">{f.location}</div>
           <div className="flex flex-wrap gap-1 mt-2">
             <Tag color="purple">{f.focus}</Tag>
             <Tag color="amber">{f.experienceLevel}</Tag>
             <Tag color="gray">{f.region}</Tag>
           </div>
-          <div className="text-xs text-gray-600 mt-2 line-clamp-2">{f.bio}</div>
-          <div className="text-xs text-gray-400 mt-1.5">
+          <div className="text-xs text-ink-600 mt-2 line-clamp-2">{f.bio}</div>
+          <div className="text-xs text-ink-400 mt-1.5">
             {f.engagements.length} engagement{f.engagements.length !== 1 ? "s" : ""} · {f.availability}
           </div>
         </div>
@@ -97,9 +97,9 @@ function Tag({
   children: React.ReactNode;
 }) {
   const colors = {
-    purple: "bg-purple-100 text-purple-700",
-    amber: "bg-amber-100 text-amber-700",
-    gray: "bg-gray-100 text-gray-600",
+    purple: "bg-ink-100 text-ink-700",
+    amber: "bg-warn-50 text-warn-700",
+    gray: "bg-ink-100 text-ink-600",
   };
   return (
     <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${colors[color]}`}>

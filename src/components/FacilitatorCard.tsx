@@ -1,353 +1,200 @@
 "use client";
 
 import { Facilitator, AvailabilityWindow } from "@/types/facilitator";
-import {
-  ExternalLink,
-  MapPin,
-  Monitor,
-  Users,
-  ChevronDown,
-  ChevronUp,
-  PlayCircle,
-  Briefcase,
-  Calendar,
-} from "lucide-react";
-import { useState } from "react";
+import { ExternalLink, PlayCircle } from "lucide-react";
 
 /**
- * One-line summary of availability for the card. Picks the next window
- * starting from today and renders e.g. "thru Dec 31" or "Jul–Sep" or
- * "Jan 5 – Mar 30, 2027".
+ * Card view of one facilitator.
+ *
+ * This component used to reach for twelve different hues — blue, emerald,
+ * purple, amber, sky, cyan, rose, indigo, green, yellow, red, grey — to
+ * distinguish a focus from a tier from a language from an industry. None
+ * of those colours meant anything, so none of them helped you read the
+ * card. Everything is neutral now except availability, which is the one
+ * genuine state. Hierarchy comes from size, weight and order instead.
  */
-function summarizeWindows(windows: AvailabilityWindow[]): string {
+
+const STATUS: Record<string, { dot: string; text: string; label: string }> = {
+  Available: { dot: "bg-ok-600", text: "text-ok-700", label: "Free" },
+  "On Assignment": {
+    dot: "bg-warn-600",
+    text: "text-warn-700",
+    label: "On assignment",
+  },
+  Unavailable: {
+    dot: "bg-stop-600",
+    text: "text-stop-700",
+    label: "Unavailable",
+  },
+};
+
+const TRAVEL: Record<string, string> = {
+  Yes: "will travel",
+  Domestic: "domestic only",
+  No: "no travel",
+};
+
+const TIER: Record<string, string> = { High: "Top", Medium: "Mid", Low: "Low" };
+
+function nextWindow(windows: AvailabilityWindow[] | undefined): string | null {
+  if (!windows?.length) return null;
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = windows
     .filter((w) => w.end >= today)
     .sort((a, b) => a.start.localeCompare(b.start));
-  if (upcoming.length === 0) return "history only";
+  if (!upcoming.length) return null;
   const w = upcoming[0];
-  const start = new Date(w.start + "T00:00:00Z");
-  const end = new Date(w.end + "T00:00:00Z");
-  const fmt = (d: Date) =>
-    d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-  if (w.start <= today && w.end.endsWith("-12-31")) return "thru year-end";
-  if (w.start <= today) return `thru ${fmt(end)}`;
-  return `${fmt(start)} – ${fmt(end)}`;
+  const fmt = (iso: string) =>
+    new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    });
+  if (w.start <= today && w.end.endsWith("-12-31")) return "free thru year-end";
+  if (w.start <= today) return `free thru ${fmt(w.end)}`;
+  return `free ${fmt(w.start)} – ${fmt(w.end)}`;
 }
 
-function focusBadge(focus: string | undefined) {
-  if (!focus) {
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full border bg-gray-50 text-gray-500 border-gray-200 italic">
-        Focus TBD
-      </span>
-    );
-  }
-  const colors: Record<string, string> = {
-    Facilitation: "bg-blue-100 text-blue-800 border-blue-200",
-    Tech: "bg-emerald-100 text-emerald-800 border-emerald-200",
-    Both: "bg-purple-100 text-purple-800 border-purple-200",
-  };
-  const icons: Record<string, React.ReactNode> = {
-    Facilitation: <Users className="w-3 h-3" />,
-    Tech: <Monitor className="w-3 h-3" />,
-    Both: (
-      <span className="inline-flex items-center -space-x-0.5">
-        <Users className="w-3 h-3" />
-        <Monitor className="w-3 h-3" />
-      </span>
-    ),
-  };
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+/** Neutral chip. The only chip style in the app. */
+function Chip({ children }: { children: React.ReactNode }) {
   return (
-    <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full border ${colors[focus] || "bg-gray-100 text-gray-800"}`}
+    <span className="rounded border border-ink-200 bg-ink-50 px-1.5 py-0.5 text-[11px] text-ink-700">
+      {children}
+    </span>
+  );
+}
+
+export default function FacilitatorCard({
+  f,
+  onOpen,
+}: {
+  f: Facilitator;
+  onOpen?: (f: Facilitator) => void;
+}) {
+  const st = STATUS[f.availability] ?? STATUS.Available;
+  const win = nextWindow(f.availableWindows);
+  const travel = f.willingToTravel ? TRAVEL[f.willingToTravel] : null;
+  const done = f.engagements.filter((e) => e.status === "Completed").length;
+  const langs = (f.languages ?? []).filter((l) => l.toLowerCase() !== "english");
+  const inds = f.industryExperience ?? [];
+
+  return (
+    <article
+      onClick={() => onOpen?.(f)}
+      className={`flex flex-col rounded-lg border border-ink-200 bg-white p-4 transition-colors ${
+        onOpen ? "cursor-pointer hover:border-arctic-300 hover:bg-arctic-50/40" : ""
+      }`}
     >
-      {icons[focus]} {focus}
-    </span>
-  );
-}
+      {/* Identity */}
+      <div className="flex items-start gap-3">
+        {f.photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={f.photoUrl}
+            alt=""
+            className="h-14 w-14 shrink-0 rounded-full border border-ink-200 object-cover"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+            }}
+          />
+        ) : (
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-arctic-100 text-lg font-semibold text-arctic-700">
+            {initials(f.name)}
+          </span>
+        )}
 
-function experienceBadge(level: string) {
-  const colors: Record<string, string> = {
-    High: "bg-amber-100 text-amber-800 border-amber-200",
-    Medium: "bg-sky-100 text-sky-800 border-sky-200",
-    Low: "bg-gray-100 text-gray-600 border-gray-200",
-  };
-  // Show Joe's "Top" vocabulary on the badge while the underlying type
-  // stays as "High" for type-safety across the codebase.
-  const label =
-    level === "High" ? "Top tier" : level === "Medium" ? "Mid tier" : "Low tier";
-  return (
-    <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full border ${colors[level] || "bg-gray-100 text-gray-800"}`}
-    >
-      {label}
-    </span>
-  );
-}
-
-function availabilityDot(availability: string) {
-  const config: Record<string, { color: string; label: string }> = {
-    Available: { color: "bg-green-500", label: "Available" },
-    "On Assignment": { color: "bg-yellow-500", label: "On Assignment" },
-    Unavailable: { color: "bg-red-500", label: "Unavailable" },
-  };
-  const c = config[availability] || config["Available"];
-  // Dots removed at operator's request — keep just the text label so the
-  // top-left corner of the card stays readable without the colored circle.
-  return (
-    <span className="inline-flex items-center gap-1.5" title={c.label}>
-      <span className="text-xs text-gray-500">{c.label}</span>
-    </span>
-  );
-}
-
-export default function FacilitatorCard({ f }: { f: Facilitator }) {
-  const [expanded, setExpanded] = useState(false);
-  const completedCount = f.engagements.filter(
-    (e) => e.status === "Completed"
-  ).length;
-
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow overflow-hidden">
-      <div className="p-5">
-        {/* Availability + Region bar */}
-        <div className="flex items-center justify-between mb-3">
-          {availabilityDot(f.availability)}
-          <span className="text-xs text-gray-400">{f.region}</span>
-        </div>
-
-        {/* Header — 2x avatar + shifted name/location/badges to the right */}
-        <div className="flex items-start gap-5">
-          {/* Avatar (2x = 28x28 = 112px) */}
-          <div className="relative flex-shrink-0">
-            <img
-              src={
-                f.photoUrl ||
-                `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name)}&backgroundColor=6366f1,8b5cf6,a855f7&fontFamily=Arial&fontSize=40`
-              }
-              alt={f.name}
-              className="w-28 h-28 rounded-full object-cover border-2 border-gray-100 bg-indigo-100 shadow-sm"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name)}&backgroundColor=6366f1`;
-              }}
-            />
-            {/* Availability dot on avatar removed at operator's request —
-                the top-of-card "Available / On Assignment / Unavailable"
-                text label already conveys the status. */}
-          </div>
-
-          <div className="flex-1 min-w-0 pt-1">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-gray-900 text-lg truncate">
-                {f.name}
-              </h3>
-              {f.linkedinUrl && f.linkedinUrl.startsWith("http") && (
-                <a
-                  href={f.linkedinUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-800 flex-shrink-0 text-xs font-medium"
-                  title="View LinkedIn Profile"
-                >
-                  <span className="font-bold">in</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
-            </div>
-            {f.location && (
-              <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
-                <MapPin className="w-3.5 h-3.5" />
-                <span className="truncate">{f.location}</span>
-              </div>
-            )}
-            <div className="flex flex-wrap gap-1.5 mt-2.5">
-              {focusBadge(f.focus)}
-              {experienceBadge(f.experienceLevel)}
-            </div>
-          </div>
-        </div>
-
-        {/* Bio — full text. Avatar size is unchanged (w-28 h-28), so the
-            card just grows downward when the bio is long. The previous
-            `line-clamp-2` was hiding most of every facilitator's
-            background mid-sentence. */}
-        <p className="text-sm text-gray-600 mt-3 whitespace-pre-wrap">{f.bio}</p>
-
-        {/* Languages */}
-        {f.languages?.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
-            {f.languages.slice(0, 4).map((lang) => (
-              <span
-                key={`lang-${lang}`}
-                className="text-[10px] px-1.5 py-0.5 bg-cyan-50 text-cyan-700 border border-cyan-100 rounded-full"
-                title="Language"
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="truncate text-[15px] font-semibold leading-snug text-ink-900">
+              {f.name}
+            </h3>
+            {f.linkedinUrl?.startsWith("http") && (
+              <a
+                href={f.linkedinUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                title={`${f.name} on LinkedIn`}
+                className="shrink-0 text-ink-400 transition-colors hover:text-arctic-600"
               >
-                {lang}
-              </span>
-            ))}
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
           </div>
-        )}
+          <p className="truncate text-xs text-ink-500">
+            {f.location || f.country || "Location not set"}
+          </p>
+          <p className="mt-1 text-xs text-ink-600">
+            {f.focus ?? "Focus not set"}
+            <span className="text-ink-300"> · </span>
+            {TIER[f.experienceLevel] ?? f.experienceLevel} tier
+          </p>
+        </div>
+      </div>
 
-        {/* Industry experience — its own row, all of them shown so it's clear
-            who covers what (Healthcare, Government, Pharma, etc.). */}
-        {f.industryExperience?.length > 0 && (
-          <div className="mt-2">
-            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
-              Industry experience
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {f.industryExperience.map((ind) => (
-                <span
-                  key={`ind-${ind}`}
-                  className="text-[11px] px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-100 rounded-full"
-                >
-                  {ind}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
+      {/* Availability — the one thing on this card allowed a colour. */}
+      <p className={`mt-3 flex flex-wrap items-center gap-1.5 text-xs ${st.text}`}>
+        <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
+        <span className="font-medium">{st.label}</span>
+        {win && <span className="tnum text-ink-600">· {win}</span>}
+        {travel && <span className="text-ink-500">· {travel}</span>}
+      </p>
 
-        {/* Availability windows — short summary (first window). Full
-            list lives in the drawer. Only renders if the facilitator
-            has submitted the self-service availability form. */}
-        {f.availableWindows && f.availableWindows.length > 0 && (
-          <div className="mt-2 inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
-            <Calendar className="w-3 h-3" />
-            <span className="font-medium">Available</span>
-            <span className="text-emerald-600">
-              {summarizeWindows(f.availableWindows)}
+      {f.bio && (
+        <p className="mt-2.5 line-clamp-3 text-sm leading-relaxed text-ink-600">
+          {f.bio}
+        </p>
+      )}
+
+      {(inds.length > 0 || langs.length > 0) && (
+        <div className="mt-2.5 flex flex-wrap gap-1">
+          {inds.slice(0, 3).map((i) => (
+            <Chip key={`i-${i}`}>{i}</Chip>
+          ))}
+          {inds.length > 3 && (
+            <span
+              className="self-center text-[11px] text-ink-500"
+              title={inds.slice(3).join(", ")}
+            >
+              +{inds.length - 3}
             </span>
-            {f.willingToTravel === "Yes" && <span className="text-emerald-600">· will travel</span>}
-            {f.willingToTravel === "Domestic" && <span className="text-emerald-600">· domestic travel</span>}
-            {f.willingToTravel === "No" && <span className="text-amber-600">· no travel</span>}
-          </div>
-        )}
+          )}
+          {langs.map((l) => (
+            <Chip key={`l-${l}`}>{l}</Chip>
+          ))}
+        </div>
+      )}
 
-        {/* Demo video button — only if a URL is present in the sheet. */}
+      <div className="mt-auto flex items-center justify-between gap-2 pt-3 text-xs">
+        <span className="tnum truncate text-ink-500">
+          {f.currentEngagement
+            ? `On ${f.currentEngagement}`
+            : done
+              ? `${done} delivered`
+              : "No engagements yet"}
+        </span>
         {f.demoVideoUrl && (
           <a
             href={f.demoVideoUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-red-50 text-red-700 border border-red-100 rounded-lg hover:bg-red-100 transition-colors"
-            title="Watch demo video"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex shrink-0 items-center gap-1 text-ink-600 transition-colors hover:text-arctic-700"
           >
-            <PlayCircle className="w-3.5 h-3.5" />
-            Watch demo
+            <PlayCircle className="h-3.5 w-3.5" />
+            Demo
           </a>
         )}
-
-        {/* Engagements summary */}
-        <div className="mt-3 flex items-center justify-between">
-          <div className="text-xs text-gray-500">
-            {completedCount > 0 ? (
-              <span>
-                {completedCount} engagement{completedCount !== 1 ? "s" : ""}{" "}
-                completed
-              </span>
-            ) : (
-              <span className="text-gray-400">No engagements yet</span>
-            )}
-            {f.currentEngagement && (
-              <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-800 rounded text-xs font-medium">
-                Active: {f.currentEngagement}
-              </span>
-            )}
-          </div>
-
-          {(f.engagements.length > 0 ||
-            (f.pastCompanies?.length || 0) > 0 ||
-            (f.pastRoles?.length || 0) > 0) && (
-            <button
-              onClick={() => setExpanded(!expanded)}
-              className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5"
-            >
-              {expanded ? "Hide" : "Details"}
-              {expanded ? (
-                <ChevronUp className="w-3 h-3" />
-              ) : (
-                <ChevronDown className="w-3 h-3" />
-              )}
-            </button>
-          )}
-        </div>
       </div>
-
-      {/* Expanded panel — past roles/companies first (they describe who the
-          person IS), then engagement history (what they've done with us). */}
-      {expanded && (
-        <div className="border-t border-gray-100 bg-gray-50 px-5 py-3 space-y-3">
-          {(f.pastRoles?.length || 0) > 0 && (
-            <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                <Briefcase className="w-3 h-3" /> Past roles
-              </h4>
-              <div className="flex flex-wrap gap-1">
-                {f.pastRoles!.map((r) => (
-                  <span
-                    key={r}
-                    className="text-[11px] px-2 py-0.5 bg-white border border-gray-200 text-gray-700 rounded-full"
-                  >
-                    {r}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {(f.pastCompanies?.length || 0) > 0 && (
-            <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                Has worked with
-              </h4>
-              <div className="flex flex-wrap gap-1">
-                {f.pastCompanies!.map((c) => (
-                  <span
-                    key={c}
-                    className="text-[11px] px-2 py-0.5 bg-white border border-indigo-200 text-indigo-700 rounded-full font-medium"
-                  >
-                    {c}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {f.engagements.length > 0 && (
-            <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                Engagement history (most recent first)
-              </h4>
-              <ul className="space-y-1.5">
-                {f.engagements.map((eng, i) => (
-                  <li
-                    key={i}
-                    className="flex items-center justify-between text-sm"
-                  >
-                    <span className="text-gray-700">{eng.name}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">{eng.date}</span>
-                      <span
-                        className={`text-xs px-1.5 py-0.5 rounded ${
-                          eng.status === "Active"
-                            ? "bg-green-100 text-green-700"
-                            : eng.status === "Completed"
-                              ? "bg-gray-100 text-gray-600"
-                              : "bg-gray-50 text-gray-400"
-                        }`}
-                      >
-                        {eng.status}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    </article>
   );
 }

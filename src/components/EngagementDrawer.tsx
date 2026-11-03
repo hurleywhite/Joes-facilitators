@@ -78,28 +78,28 @@ export default function EngagementDrawer({
       />
       <div className="w-full max-w-2xl bg-white shadow-2xl overflow-y-auto">
         {/* Sticky header */}
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-4 flex items-start justify-between gap-3">
+        <div className="sticky top-0 z-10 bg-white border-b border-ink-200 px-6 py-4 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-gray-900 truncate">
+              <h2 className="text-xl font-bold text-ink-900 truncate">
                 {e.client && e.client !== "(unknown)" ? e.client : e.name}
               </h2>
               <StatusBadge status={e.status} />
             </div>
             {e.name && e.name !== e.client && e.name !== "(untitled)" && (
-              <div className="text-sm text-indigo-700 font-medium mt-0.5 truncate">
+              <div className="text-sm text-arctic-700 font-medium mt-0.5 truncate">
                 {e.name}
               </div>
             )}
             {stickyContext && (
-              <div className="text-xs text-gray-500 mt-1 truncate">
+              <div className="text-xs text-ink-500 mt-1 truncate">
                 {stickyContext}
               </div>
             )}
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded hover:bg-gray-100 text-gray-500"
+            className="p-1 rounded hover:bg-ink-100 text-ink-500"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -108,43 +108,43 @@ export default function EngagementDrawer({
 
         <div className="p-6 space-y-6">
           {/* Engagement meta */}
-          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-600">
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-ink-600">
             {dateRange && (
               <span className="inline-flex items-center gap-1.5">
-                <Calendar className="w-4 h-4 text-gray-400" />
+                <Calendar className="w-4 h-4 text-ink-400" />
                 {dateRange}
               </span>
             )}
             {e.location && (
               <span className="inline-flex items-center gap-1.5">
-                <MapPin className="w-4 h-4 text-gray-400" />
+                <MapPin className="w-4 h-4 text-ink-400" />
                 {e.location}
               </span>
             )}
             {e.type && (
               <span className="inline-flex items-center gap-1.5">
-                <Briefcase className="w-4 h-4 text-gray-400" />
+                <Briefcase className="w-4 h-4 text-ink-400" />
                 {e.type}
               </span>
             )}
             {e.valueUSD && (
-              <span className="text-gray-700 font-medium">{e.valueUSD}</span>
+              <span className="text-ink-700 font-medium">{e.valueUSD}</span>
             )}
           </div>
 
           {e.notes && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-700 italic">
+            <div className="bg-ink-50 border border-ink-200 rounded-lg p-3 text-sm text-ink-700 italic">
               {e.notes}
             </div>
           )}
 
           {/* Team */}
           <div>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            <h3 className="text-xs font-semibold text-ink-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
               <Users className="w-3.5 h-3.5" /> Team ({team.length})
             </h3>
             {team.length === 0 ? (
-              <div className="text-sm text-gray-400 italic">
+              <div className="text-sm text-ink-400 italic">
                 No facilitators assigned yet.
               </div>
             ) : (
@@ -179,9 +179,9 @@ function TeamTile({
     // Name on the engagement doesn't match anyone in the pool. Render a
     // dimmed tile so the operator knows why this person can't be opened.
     return (
-      <div className="border border-dashed border-gray-300 bg-gray-50 rounded-lg p-3 text-sm">
-        <div className="font-medium text-gray-700">{name}</div>
-        <div className="text-[11px] text-gray-400 mt-0.5">
+      <div className="border border-dashed border-ink-300 bg-ink-50 rounded-lg p-3 text-sm">
+        <div className="font-medium text-ink-700">{name}</div>
+        <div className="text-[11px] text-ink-400 mt-0.5">
           Not in the facilitator pool
         </div>
       </div>
@@ -191,28 +191,28 @@ function TeamTile({
   const f = facilitator;
   const availColor =
     f.availability === "Available"
-      ? "bg-green-500"
+      ? "bg-ok-600"
       : f.availability === "On Assignment"
-        ? "bg-yellow-500"
-        : "bg-red-500";
+        ? "bg-warn-600"
+        : "bg-stop-600";
 
   return (
     <button
       type="button"
       onClick={() => onView(f)}
-      className="text-left bg-white border border-gray-200 rounded-lg p-3 hover:border-indigo-300 hover:shadow-sm transition-all"
+      className="text-left bg-white border border-ink-200 rounded-lg p-3 hover:border-arctic-300 hover:shadow-sm transition-all"
     >
       <div className="flex items-start gap-3">
         <div className="relative flex-shrink-0">
           <img
             src={
               f.photoUrl ||
-              `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name)}&backgroundColor=6366f1`
+              `https://api.dicebear.com/7.x/initials/svg?textColor=1a5584&seed=${encodeURIComponent(f.name)}&backgroundColor=dceefa`
             }
             alt={f.name}
-            className="w-12 h-12 rounded-full object-cover border-2 border-gray-100 bg-indigo-100"
+            className="w-12 h-12 rounded-full object-cover border-2 border-ink-100 bg-arctic-100"
             onError={(e) => {
-              (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name)}&backgroundColor=6366f1`;
+              (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?textColor=1a5584&seed=${encodeURIComponent(f.name)}&backgroundColor=dceefa`;
             }}
           />
           <span
@@ -221,7 +221,7 @@ function TeamTile({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-semibold text-gray-900 truncate">
+            <span className="text-sm font-semibold text-ink-900 truncate">
               {f.name}
             </span>
             {f.linkedinUrl && f.linkedinUrl.startsWith("http") && (
@@ -230,7 +230,7 @@ function TeamTile({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="text-blue-600 hover:text-blue-800"
+                className="text-arctic-600 hover:text-arctic-800"
                 title="LinkedIn"
               >
                 <ExternalLink className="w-3 h-3" />
@@ -242,23 +242,23 @@ function TeamTile({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="text-red-600 hover:text-red-800"
+                className="text-stop-600 hover:text-stop-700"
                 title="Watch demo"
               >
                 <PlayCircle className="w-3.5 h-3.5" />
               </a>
             )}
           </div>
-          <div className="text-xs text-gray-500 mt-0.5 truncate">
+          <div className="text-xs text-ink-500 mt-0.5 truncate">
             {f.location}
           </div>
           <div className="flex flex-wrap gap-1 mt-1.5">
             {f.focus && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 border border-purple-100 rounded-full">
+              <span className="text-[10px] px-1.5 py-0.5 bg-ink-50 text-ink-700 border border-ink-100 rounded-full">
                 {f.focus}
               </span>
             )}
-            <span className="text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-full">
+            <span className="text-[10px] px-1.5 py-0.5 bg-warn-50 text-warn-700 border border-warn-200 rounded-full">
               {f.experienceLevel === "High"
                 ? "Top tier"
                 : f.experienceLevel === "Medium"
@@ -266,14 +266,14 @@ function TeamTile({
                   : "Low tier"}
             </span>
             {f.willingToTravel && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full inline-flex items-center gap-0.5">
+              <span className="text-[10px] px-1.5 py-0.5 bg-ok-50 text-ok-700 border border-ok-200 rounded-full inline-flex items-center gap-0.5">
                 <Plane className="w-2.5 h-2.5" />
                 {f.willingToTravel === "Domestic" ? "Domestic" : f.willingToTravel === "Yes" ? "Will travel" : "No travel"}
               </span>
             )}
           </div>
           {f.industryExperience && f.industryExperience.length > 0 && (
-            <div className="text-[10px] text-gray-500 mt-1.5 truncate">
+            <div className="text-[10px] text-ink-500 mt-1.5 truncate">
               {f.industryExperience.slice(0, 3).join(" · ")}
             </div>
           )}
@@ -285,11 +285,11 @@ function TeamTile({
 
 function StatusBadge({ status }: { status: EngagementRecordStatus }) {
   const map: Record<EngagementRecordStatus, string> = {
-    Active: "bg-green-100 text-green-700 border-green-200",
-    Upcoming: "bg-indigo-100 text-indigo-700 border-indigo-200",
-    Completed: "bg-gray-100 text-gray-600 border-gray-200",
-    Cancelled: "bg-red-100 text-red-700 border-red-200",
-    "On Hold": "bg-amber-100 text-amber-700 border-amber-200",
+    Active: "bg-ok-50 text-ok-700 border-ok-200",
+    Upcoming: "bg-arctic-100 text-arctic-700 border-arctic-200",
+    Completed: "bg-ink-100 text-ink-600 border-ink-200",
+    Cancelled: "bg-stop-50 text-stop-700 border-stop-200",
+    "On Hold": "bg-warn-50 text-warn-700 border-warn-200",
   };
   return (
     <span

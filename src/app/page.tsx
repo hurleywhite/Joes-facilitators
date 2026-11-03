@@ -4,19 +4,30 @@ import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react
 import { Facilitator } from "@/types/facilitator";
 import { applyOverlay, readLocalOverlay } from "@/lib/overlay-merge";
 import FacilitatorCard from "@/components/FacilitatorCard";
-import FilterBar from "@/components/FilterBar";
+import FacilitatorRoster from "@/components/FacilitatorRoster";
+import FilterBar, { View } from "@/components/FilterBar";
 import StatsBar from "@/components/StatsBar";
-import { RefreshCw, Briefcase, MessageSquare, Calendar as CalendarIcon, Check, Link2, Notebook, Sparkles, Mail } from "lucide-react";
-import Link from "next/link";
+import AppHeader, { HeaderButton } from "@/components/AppHeader";
+import { RefreshCw } from "lucide-react";
 import FacilitatorDrawer from "@/components/FacilitatorDrawer";
 
 const MapView = lazy(() => import("@/components/MapView"));
 const CalendarView = lazy(() => import("@/components/CalendarView"));
 
+function Loading({ label }: { label: string }) {
+  return (
+    <div className="flex items-center justify-center gap-2 rounded-lg border border-ink-200 bg-white py-20 text-sm text-ink-500">
+      <RefreshCw className="h-4 w-4 animate-spin text-ink-400" />
+      {label}
+    </div>
+  );
+}
+
 export default function Home() {
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [syncedAt, setSyncedAt] = useState<Date | null>(null);
 
   const [search, setSearch] = useState("");
   const [focusFilter, setFocusFilter] = useState("All");
@@ -25,9 +36,16 @@ export default function Home() {
   const [regionFilter, setRegionFilter] = useState("All");
   const [industryFilter, setIndustryFilter] = useState("All");
   const [availableOn, setAvailableOn] = useState<string>("");
-  const [view, setView] = useState<"cards" | "map" | "calendar">("cards");
-  const [drawerFacilitator, setDrawerFacilitator] = useState<Facilitator | null>(null);
-  const [linkCopied, setLinkCopied] = useState(false);
+  // Roster is the right default on a laptop — it's the whole point of the
+  // redesign. On a phone a six-column table can only scroll sideways, so
+  // cards win there. Decided once on mount; after that it's the user's call.
+  const [view, setView] = useState<View>("roster");
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 767px)").matches) setView("cards");
+  }, []);
+  const [drawerFacilitator, setDrawerFacilitator] = useState<Facilitator | null>(
+    null
+  );
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -37,9 +55,9 @@ export default function Home() {
       if (!res.ok) throw new Error("Failed to fetch");
       const data: Facilitator[] = await res.json();
       // Sort alphabetically by name — the sheet isn't sorted, so we sort
-      // here so the cards/map/chat results all render in a predictable
-      // order. Uses localeCompare so accented names ("Anja Novković",
-      // "Alejandro") fall into the right slot.
+      // here so the roster/cards/map/chat results all render in a
+      // predictable order. localeCompare so accented names ("Anja
+      // Novković", "Alejandro") fall into the right slot.
       if (Array.isArray(data)) {
         data.sort((a, b) =>
           (a.name || "").localeCompare(b.name || "", undefined, {
@@ -51,10 +69,10 @@ export default function Home() {
       // This guarantees the operator sees their own applied updates even when
       // Vercel's per-lambda /tmp has cycled (see lib/overlay-merge.ts).
       const localOverlay = readLocalOverlay();
-      const merged = applyOverlay(data, localOverlay);
-      setFacilitators(merged);
+      setFacilitators(applyOverlay(data, localOverlay));
+      setSyncedAt(new Date());
     } catch {
-      setError("Failed to load facilitator data. Please try again.");
+      setError("Couldn't reach the sheet.");
     } finally {
       setLoading(false);
     }
@@ -65,17 +83,15 @@ export default function Home() {
   }, [fetchData]);
 
   /**
-   * Auto-refresh from the Google Sheet so edits show up without a manual click.
-   * Polls every 60 seconds while the tab is visible (cheap, since the API is
-   * already `cache: no-store` and the sheet fetch is fast), and fires
-   * immediately whenever the tab regains focus — i.e. you alt-tab from the
-   * sheet back to the app and it's already current.
+   * Auto-refresh from the Google Sheet so edits show up without a manual
+   * click. Polls every 60s while the tab is visible, and fires immediately
+   * whenever the tab regains focus — i.e. you alt-tab from the sheet back
+   * to the app and it's already current.
    */
   useEffect(() => {
-    const POLL_MS = 60_000;
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") fetchData();
-    }, POLL_MS);
+    }, 60_000);
     const onVisibility = () => {
       if (document.visibilityState === "visible") fetchData();
     };
@@ -86,8 +102,8 @@ export default function Home() {
     };
   }, [fetchData]);
 
-  // Build the industry option list from the loaded data — keeps the dropdown
-  // in sync with whatever bios + sheet columns produced after parsing.
+  // Industry options come from the loaded data, most common first, so the
+  // dropdown stays in sync with whatever the sheet + bio parsing produced.
   const industryOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const f of facilitators) {
@@ -103,9 +119,8 @@ export default function Home() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return facilitators.filter((f) => {
-      // Defensive lowercasing — any missing/undefined field used to crash
-      // the entire filter (e.g. f.bio undefined → ".toLowerCase()" throws),
-      // which made the search look broken with zero results for everything.
+      // Defensive lowercasing — any missing field used to throw and make
+      // the whole search look broken with zero results for everything.
       const contains = (s: string | undefined | null) =>
         !!s && s.toLowerCase().includes(q);
       const matchesSearch =
@@ -128,7 +143,8 @@ export default function Home() {
         (f.pastRoles || []).some((r) => contains(r));
       const matchesFocus = focusFilter === "All" || f.focus === focusFilter;
       const matchesExp = expFilter === "All" || f.experienceLevel === expFilter;
-      const matchesAvail = availFilter === "All" || f.availability === availFilter;
+      const matchesAvail =
+        availFilter === "All" || f.availability === availFilter;
       const matchesRegion = regionFilter === "All" || f.region === regionFilter;
       const matchesIndustry =
         industryFilter === "All" ||
@@ -139,7 +155,8 @@ export default function Home() {
         !availableOn ||
         (f.availableWindows?.some(
           (w) => availableOn >= w.start && availableOn <= w.end
-        ) ?? false);
+        ) ??
+          false);
       return (
         matchesSearch &&
         matchesFocus &&
@@ -150,102 +167,46 @@ export default function Home() {
         matchesDate
       );
     });
-  }, [facilitators, search, focusFilter, expFilter, availFilter, regionFilter, industryFilter, availableOn]);
+  }, [
+    facilitators,
+    search,
+    focusFilter,
+    expFilter,
+    availFilter,
+    regionFilter,
+    industryFilter,
+    availableOn,
+  ]);
+
+  const freeNow = facilitators.filter(
+    (f) => f.availability === "Available"
+  ).length;
+
+  const headerStatus = facilitators.length
+    ? `${facilitators.length} on the bench · ${freeNow} free${
+        syncedAt
+          ? ` · synced ${syncedAt.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}`
+          : ""
+      }`
+    : undefined;
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/logo.avif" alt="ArcticMind" className="h-10 w-auto" />
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">
-                Facilitator Pool
-              </h1>
-              <p className="text-xs text-gray-500">
-                Global workshop facilitators &amp; trainers
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={async () => {
-                const url = `${window.location.origin}/availability`;
-                try {
-                  await navigator.clipboard.writeText(url);
-                  setLinkCopied(true);
-                  setTimeout(() => setLinkCopied(false), 2000);
-                } catch {
-                  // Clipboard blocked — fall through to opening in new tab.
-                  window.open(url, "_blank");
-                }
-              }}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-amber-50 text-amber-800 rounded-lg hover:bg-amber-100 transition-colors"
-              title="Copy facilitator availability form link"
-            >
-              {linkCopied ? (
-                <>
-                  <Check className="w-4 h-4 text-green-600" />
-                  Link copied
-                </>
-              ) : (
-                <>
-                  <Link2 className="w-4 h-4" />
-                  Share avail. form
-                </>
-              )}
-            </button>
-            <Link
-              href="/chat"
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors"
-            >
-              <MessageSquare className="w-4 h-4" />
-              Ask
-            </Link>
-            <Link
-              href="/edit"
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
-              title="Update the spreadsheet with plain-English notes"
-            >
-              <Notebook className="w-4 h-4" />
-              Notes
-            </Link>
-            <Link
-              href="/transcripts"
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors"
-            >
-              <Sparkles className="w-4 h-4" />
-              Transcripts
-            </Link>
-            <Link
-              href="/emails"
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-rose-50 text-rose-700 rounded-lg hover:bg-rose-100 transition-colors"
-            >
-              <Mail className="w-4 h-4" />
-              Emails
-            </Link>
-            <Link
-              href="/engagements"
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors"
-            >
-              <Briefcase className="w-4 h-4" />
-              Engagements
-            </Link>
-            <button
-              onClick={fetchData}
-              disabled={loading}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-              Refresh
-            </button>
-          </div>
-        </div>
-      </header>
+    <main className="flex min-h-screen flex-col bg-ink-50">
+      <AppHeader status={headerStatus}>
+        <HeaderButton
+          onClick={fetchData}
+          disabled={loading}
+          title="Pull the latest from the sheet"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          <span className="hidden sm:inline">Refresh</span>
+        </HeaderButton>
+      </AppHeader>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-        {/* Stats */}
+      <div className="mx-auto w-full max-w-[1600px] flex-1 space-y-4 px-4 py-5 sm:px-6">
         <StatsBar
           facilitators={facilitators}
           activeFocus={focusFilter}
@@ -254,7 +215,6 @@ export default function Home() {
           }
         />
 
-        {/* Filters */}
         <FilterBar
           search={search}
           onSearchChange={setSearch}
@@ -269,144 +229,105 @@ export default function Home() {
           industryFilter={industryFilter}
           onIndustryChange={setIndustryFilter}
           industryOptions={industryOptions}
+          availableOn={availableOn}
+          onAvailableOnChange={setAvailableOn}
           view={view}
           onViewChange={setView}
           totalCount={facilitators.length}
           filteredCount={filtered.length}
         />
 
-        {/* Availability date filter — pulls from the Availability tab
-            submissions. Only shows facilitators whose declared windows
-            include the picked date. */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm bg-white border border-gray-200 rounded-xl px-4 py-3">
-          <label className="flex items-center gap-2 text-gray-600 font-medium">
-            <CalendarIcon className="w-4 h-4 text-indigo-600" />
-            Filter by date available:
-          </label>
-          <input
-            type="date"
-            value={availableOn}
-            onChange={(e) => setAvailableOn(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 text-gray-700"
-          />
-          {availableOn && (
-            <button
-              onClick={() => setAvailableOn("")}
-              className="text-xs text-gray-500 hover:text-gray-800 underline-offset-2 hover:underline"
-            >
-              Clear
-            </button>
-          )}
-          <span className="sm:ml-auto text-xs text-gray-400">
-            Pulls from the self-served{" "}
-            <a href="/availability" className="text-indigo-600 hover:underline">
-              availability form
-            </a>
-          </span>
-        </div>
-
-        {/* Error */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
-            {error}
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-stop-200 bg-stop-50 px-4 py-3 text-sm text-stop-700">
+            <span>{error} The roster below may be out of date.</span>
+            <button
+              onClick={fetchData}
+              className="font-medium underline underline-offset-2"
+            >
+              Try again
+            </button>
           </div>
         )}
 
-        {/* Loading */}
-        {loading && (
-          <div className="flex items-center justify-center py-20">
-            <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+        {loading && facilitators.length === 0 && <Loading label="Loading the bench…" />}
+
+        {!loading && !error && filtered.length === 0 && facilitators.length > 0 && (
+          <div className="rounded-lg border border-ink-200 bg-white py-16 text-center">
+            <p className="text-sm font-medium text-ink-800">
+              Nobody matches all of those filters.
+            </p>
+            <p className="mt-1 text-sm text-ink-500">
+              Drop one, or{" "}
+              <a href="/chat" className="text-arctic-700 underline underline-offset-2">
+                describe the deal in plain English
+              </a>{" "}
+              and let the matcher find the closest fits.
+            </p>
           </div>
         )}
 
-        {/* Content */}
-        {!loading && !error && (
+        {!error && filtered.length > 0 && (
           <>
-            {view === "cards" &&
-              (filtered.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filtered.map((f) => (
-                    <FacilitatorCard key={f.id} f={f} />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-16 text-gray-400">
-                  No facilitators match your filters.
-                </div>
-              ))}
+            {view === "roster" && (
+              <FacilitatorRoster
+                facilitators={filtered}
+                onOpen={setDrawerFacilitator}
+              />
+            )}
+
+            {view === "cards" && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                {filtered.map((f) => (
+                  <FacilitatorCard key={f.id} f={f} onOpen={setDrawerFacilitator} />
+                ))}
+              </div>
+            )}
 
             {view === "map" && (
-              <Suspense
-                fallback={
-                  <div className="flex items-center justify-center py-20">
-                    <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+              <Suspense fallback={<Loading label="Loading the map…" />}>
+                <div className="overflow-hidden rounded-lg border border-ink-200">
+                  <div style={{ height: "640px" }}>
+                    <MapView facilitators={filtered} />
                   </div>
-                }
-              >
-                <div style={{ height: "600px" }}>
-                  <MapView facilitators={filtered} />
+                </div>
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-ink-200 bg-white px-4 py-2.5 text-xs text-ink-600">
+                  <span className="eyebrow">Pin colour</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-ok-600" />
+                    Free
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-warn-600" />
+                    On assignment
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-stop-600" />
+                    Unavailable
+                  </span>
                 </div>
               </Suspense>
             )}
 
             {view === "calendar" && (
-              <Suspense
-                fallback={
-                  <div className="flex items-center justify-center py-20">
-                    <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
-                  </div>
-                }
-              >
+              <Suspense fallback={<Loading label="Loading the timeline…" />}>
                 <CalendarView
                   facilitators={filtered}
                   onPickFacilitator={setDrawerFacilitator}
                 />
               </Suspense>
             )}
-
-            {/* Legend for map */}
-            {view === "map" && (
-              <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                  Legend
-                </h3>
-                <div className="flex flex-wrap gap-4 text-xs text-gray-600">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-blue-500" />
-                    Facilitation
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-emerald-500" />
-                    Tech
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-purple-500" />
-                    Both
-                  </div>
-                  <span className="text-gray-300">|</span>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
-                    Available
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
-                    On Assignment
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                    Unavailable
-                  </div>
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
 
-      {/* Footer */}
-      <footer className="border-t border-gray-200 bg-white mt-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 text-center text-xs text-gray-400">
-          Facilitator Pool Manager &middot; Data sourced from Google Sheets
+      <footer className="border-t border-ink-200 bg-white">
+        <div className="tnum mx-auto max-w-[1600px] px-4 py-3 text-xs text-ink-400 sm:px-6">
+          {syncedAt
+            ? `Pool Data · last synced ${syncedAt.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })} · refreshes every minute`
+            : "Pool Data"}
         </div>
       </footer>
 

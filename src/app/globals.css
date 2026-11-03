@@ -1,26 +1,140 @@
 @import "tailwindcss";
 
+/* ───────────────────────────────────────────────────────────────
+   Design tokens.
+
+   One accent (arctic blue, sampled from the ArcticMind logo) and one
+   neutral ramp carry the whole interface. Colour is NOT decoration here:
+   the only hues besides the accent are the three status colours, and they
+   are reserved for availability / engagement state. If something is not a
+   state, it is neutral. That rule is what keeps the pages from turning
+   back into confetti.
+   ─────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* Accent — ArcticMind blue. #2480c1 and #1461a5 are lifted straight
+     off the logo mark, the rest is a ramp built around them. */
+  --color-arctic-50: #f0f7fc;
+  --color-arctic-100: #dceefa;
+  --color-arctic-200: #bbddf4;
+  --color-arctic-300: #87c4ea;
+  --color-arctic-400: #479ed9;
+  --color-arctic-500: #2480c1;
+  --color-arctic-600: #1b66a2;
+  --color-arctic-700: #1a5584;
+  --color-arctic-800: #1a476d;
+  --color-arctic-900: #1a3d5c;
+  --color-arctic-950: #11273c;
+
+  /* Neutral — slightly cool, deliberately not Tailwind's default gray.
+     Text, borders, surfaces and every non-state element live here. */
+  --color-ink-50: #f7f8fa;
+  --color-ink-100: #eef0f3;
+  --color-ink-200: #e2e5ea;
+  --color-ink-300: #cbd1d9;
+  --color-ink-400: #99a2ae;
+  --color-ink-500: #6c7684;
+  --color-ink-600: #4e5863;
+  --color-ink-700: #3a424c;
+  --color-ink-800: #262c34;
+  --color-ink-900: #171b21;
+  --color-ink-950: #0d0f13;
+
+  /* Status — the ONLY other hues in the system.
+     ok = free to book, warn = committed elsewhere, stop = not bookable. */
+  --color-ok-50: #e9f6ef;
+  --color-ok-200: #b6e0c8;
+  --color-ok-600: #147f4b;
+  --color-ok-700: #0f6239;
+
+  --color-warn-50: #fdf5e4;
+  --color-warn-200: #f2dda6;
+  --color-warn-600: #96670a;
+  --color-warn-700: #7a5308;
+
+  --color-stop-50: #fcecea;
+  --color-stop-200: #f3c6c1;
+  --color-stop-600: #a8322d;
+  --color-stop-700: #8a2824;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
 :root {
-  --background: #f9fafb;
-  --foreground: #111827;
+  --surface: #ffffff;
+  --canvas: #f7f8fa;
+}
+
+html {
+  background: var(--canvas);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--canvas);
+  color: var(--color-ink-900);
+  font-family: var(--font-sans);
+  /* Slightly tighter default tracking — stock Geist at UI sizes reads
+     a touch loose in dense tables. */
+  letter-spacing: -0.006em;
 }
 
-/* Leaflet popup styles */
+/* Numbers in tables, counts and dates should never jitter as they change
+   (the roster auto-refreshes every 60s). */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Section eyebrow. Used sparingly — small caps carry hierarchy so colour
+   doesn't have to. */
+.eyebrow {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-400);
+}
+
+/* One focus ring for the whole app. */
+*:focus-visible {
+  outline: 2px solid var(--color-arctic-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Native selects: strip the chrome so they sit flush with our own
+   controls instead of looking like three different form libraries. */
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 8l3-3.5' fill='none' stroke='%236c7684' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 26px;
+}
+
+::placeholder {
+  color: var(--color-ink-400);
+}
+
+/* Leaflet — match the app's surface language instead of the default
+   drop-shadowed bubble. */
 .leaflet-popup-content-wrapper {
-  border-radius: 12px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 2px rgba(13, 15, 19, 0.06), 0 8px 24px rgba(13, 15, 19, 0.1) !important;
+  border: 1px solid var(--color-ink-200) !important;
 }
 .leaflet-popup-content {
-  margin: 12px 16px !important;
+  margin: 10px 14px !important;
+  font-family: var(--font-sans) !important;
+}
+.leaflet-container {
+  font-family: var(--font-sans) !important;
+  background: var(--color-ink-100) !important;
 }
 
-/* Print styles for proposals */
+/* Print — proposals go out as PDFs. */
 @media print {
   body {
     background: white;
@@ -28,6 +142,9 @@ body {
   @page {
     margin: 0.75in;
     size: letter;
+  }
+  .no-print {
+    display: none !important;
   }
   #proposal-doc {
     max-width: 100% !important;
@@ -41,5 +158,15 @@ body {
   }
   table {
     break-inside: avoid;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

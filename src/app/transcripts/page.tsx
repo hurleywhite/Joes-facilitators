@@ -3,18 +3,18 @@
 import { useState, useRef, ChangeEvent, DragEvent } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft,
+  ListChecks,
   Upload,
   FileText,
   Loader2,
   CheckCircle2,
   AlertTriangle,
   Trash2,
-  Sparkles,
   Files,
 } from "lucide-react";
 import type { ExtractResult } from "@/lib/transcript-extract";
 import { addLocalPatch } from "@/lib/overlay-merge";
+import AppHeader from "@/components/AppHeader";
 
 /* ---------------------------------------------------------------------------
  * Transcript Ingestion Page
@@ -293,42 +293,23 @@ export default function TranscriptsPage() {
   // ------------------------------------------------------------------------
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Pool
-            </Link>
-            <div className="h-6 w-px bg-gray-200" />
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-indigo-600" />
-              <div>
-                <h1 className="text-lg font-bold text-gray-900">
-                  Transcript Ingestion
-                </h1>
-                <p className="text-xs text-gray-500">
-                  Upload meeting transcripts &mdash; we extract verified updates and merge them into the pool
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+    <main className="min-h-screen bg-ink-50">
+      <AppHeader />
+      <div className="mx-auto w-full max-w-5xl px-4 pt-6 sm:px-6">
+        <h1 className="text-lg font-semibold tracking-tight text-ink-900">Transcripts</h1>
+        <p className="mt-0.5 text-sm text-ink-500">Paste a meeting transcript. We pull out what changed about your people and you approve each edit.</p>
+      </div>
+
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {topLevelError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm flex items-start gap-2">
+          <div className="bg-stop-50 border border-stop-200 text-stop-700 rounded-xl p-4 text-sm flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
             <div>{topLevelError}</div>
           </div>
         )}
         {applySummary && (
-          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-4 text-sm flex items-start gap-2">
+          <div className="bg-ok-50 border border-ok-200 text-ok-700 rounded-xl p-4 text-sm flex items-start gap-2">
             <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
             <div>
               {applySummary}{" "}
@@ -348,14 +329,14 @@ export default function TranscriptsPage() {
           onDragLeave={() => setDragOver(false)}
           onDrop={onDrop}
           className={`border-2 border-dashed rounded-2xl p-8 text-center transition-colors bg-white ${
-            dragOver ? "border-indigo-500 bg-indigo-50" : "border-gray-300"
+            dragOver ? "border-arctic-500 bg-arctic-50" : "border-ink-300"
           }`}
         >
-          <Upload className="w-10 h-10 text-indigo-500 mx-auto mb-2" />
-          <h2 className="text-lg font-semibold text-gray-900">
+          <Upload className="w-10 h-10 text-arctic-500 mx-auto mb-2" />
+          <h2 className="text-lg font-semibold text-ink-900">
             Drop transcript files here
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-500 mt-1">
             Accepts .txt, .md, .vtt, .srt, or any plain-text export. Multiple files at once is fine.
           </p>
           <input
@@ -368,33 +349,33 @@ export default function TranscriptsPage() {
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="mt-4 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700"
+            className="mt-4 px-4 py-2 bg-arctic-600 text-white text-sm font-medium rounded-lg hover:bg-arctic-700"
           >
             Choose files
           </button>
         </section>
 
         {/* Batch paste */}
-        <section className="bg-white border border-gray-200 rounded-2xl p-6">
+        <section className="bg-white border border-ink-200 rounded-2xl p-6">
           <div className="flex items-center gap-2 mb-2">
-            <Files className="w-5 h-5 text-gray-700" />
-            <h2 className="text-base font-semibold text-gray-900">
+            <Files className="w-5 h-5 text-ink-700" />
+            <h2 className="text-base font-semibold text-ink-900">
               Batch paste mode
             </h2>
           </div>
-          <p className="text-xs text-gray-500 mb-3">
-            Paste multiple transcripts in one shot. Separate them with a line of three dashes (<code className="bg-gray-100 px-1 rounded">---</code>) or <code className="bg-gray-100 px-1 rounded">--- transcript: Name ---</code>.
+          <p className="text-xs text-ink-500 mb-3">
+            Paste multiple transcripts in one shot. Separate them with a line of three dashes (<code className="bg-ink-100 px-1 rounded">---</code>) or <code className="bg-ink-100 px-1 rounded">--- transcript: Name ---</code>.
           </p>
           <textarea
             value={batchText}
             onChange={(e) => setBatchText(e.target.value)}
             placeholder="Paste one or many transcripts here. Use --- between them."
-            className="w-full h-32 border border-gray-200 rounded-lg p-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full h-32 border border-ink-200 rounded-lg p-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-arctic-500"
           />
           <button
             onClick={addBatchToQueue}
             disabled={!batchText.trim()}
-            className="mt-2 px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 disabled:opacity-50"
+            className="mt-2 px-3 py-1.5 text-sm bg-ink-100 hover:bg-ink-200 rounded-lg text-ink-700 disabled:opacity-50"
           >
             Add to queue
           </button>
@@ -402,48 +383,48 @@ export default function TranscriptsPage() {
 
         {/* Queue */}
         {queue.length > 0 && (
-          <section className="bg-white border border-gray-200 rounded-2xl p-6">
+          <section className="bg-white border border-ink-200 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-semibold text-gray-900">
+              <h2 className="text-base font-semibold text-ink-900">
                 Queue ({queue.length})
               </h2>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setQueue([])}
-                  className="text-xs text-gray-500 hover:text-gray-700"
+                  className="text-xs text-ink-500 hover:text-ink-700"
                 >
                   Clear
                 </button>
                 <button
                   onClick={runExtraction}
                   disabled={extracting}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 bg-arctic-600 text-white text-sm font-medium rounded-lg hover:bg-arctic-700 disabled:opacity-50"
                 >
                   {extracting ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    <Sparkles className="w-4 h-4" />
+                    <ListChecks className="w-4 h-4" />
                   )}
                   {extracting ? "Extracting..." : "Extract updates"}
                 </button>
               </div>
             </div>
-            <ul className="divide-y divide-gray-100">
+            <ul className="divide-y divide-ink-100">
               {queue.map((q, i) => (
                 <li
                   key={i}
                   className="py-2 flex items-center justify-between text-sm"
                 >
-                  <div className="flex items-center gap-2 text-gray-700 truncate">
-                    <FileText className="w-4 h-4 text-gray-400 shrink-0" />
+                  <div className="flex items-center gap-2 text-ink-700 truncate">
+                    <FileText className="w-4 h-4 text-ink-400 shrink-0" />
                     <span className="truncate font-medium">{q.filename}</span>
-                    <span className="text-gray-400 text-xs">
+                    <span className="text-ink-400 text-xs">
                       ({q.text.length.toLocaleString()} chars)
                     </span>
                   </div>
                   <button
                     onClick={() => removeFromQueue(i)}
-                    className="text-gray-400 hover:text-red-600"
+                    className="text-ink-400 hover:text-stop-600"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -457,13 +438,13 @@ export default function TranscriptsPage() {
         {results.length > 0 && (
           <section className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gray-900">
+              <h2 className="text-base font-semibold text-ink-900">
                 Review extracted updates ({results.length})
               </h2>
               <button
                 onClick={applyChecked}
                 disabled={applying}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-ok-600 text-white text-sm font-medium rounded-lg hover:bg-ok-700 disabled:opacity-50"
               >
                 {applying ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -502,10 +483,10 @@ function ResultCard({
   const isError = !!result.error;
   const confidenceColor =
     ext.matchConfidence === "high"
-      ? "bg-emerald-100 text-emerald-700"
+      ? "bg-ok-50 text-ok-700"
       : ext.matchConfidence === "medium"
-        ? "bg-amber-100 text-amber-700"
-        : "bg-red-100 text-red-700";
+        ? "bg-warn-50 text-warn-700"
+        : "bg-stop-50 text-stop-700";
 
   const fieldRows = (
     [
@@ -529,10 +510,10 @@ function ResultCard({
   });
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-5">
+    <div className="bg-white border border-ink-200 rounded-2xl p-5">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+          <div className="flex items-center gap-2 text-sm text-ink-500 mb-1">
             <FileText className="w-4 h-4" />
             <span className="font-mono truncate">{result.filename}</span>
           </div>
@@ -544,7 +525,7 @@ function ResultCard({
                 onChange((r) => ({ ...r, chosenFacilitator: e.target.value }))
               }
               placeholder="Facilitator name (must match an existing roster entry)"
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-medium w-72"
+              className="border border-ink-300 rounded-lg px-3 py-1.5 text-sm font-medium w-72"
             />
             {result.candidates.length > 0 && (
               <select
@@ -553,7 +534,7 @@ function ResultCard({
                   if (e.target.value)
                     onChange((r) => ({ ...r, chosenFacilitator: e.target.value }));
                 }}
-                className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs"
+                className="border border-ink-300 rounded-lg px-2 py-1.5 text-xs"
               >
                 <option value="">Pick from roster…</option>
                 {result.candidates.map((c) => (
@@ -570,7 +551,7 @@ function ResultCard({
             </span>
           </div>
           {ext.matchReason && (
-            <p className="text-xs text-gray-500 mt-1 italic">{ext.matchReason}</p>
+            <p className="text-xs text-ink-500 mt-1 italic">{ext.matchReason}</p>
           )}
         </div>
       </div>
@@ -580,7 +561,7 @@ function ResultCard({
           {result.warnings.map((w, i) => (
             <div
               key={i}
-              className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 flex items-start gap-1"
+              className="text-xs text-warn-700 bg-warn-50 border border-warn-200 rounded-md px-2 py-1 flex items-start gap-1"
             >
               <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
               <span>{w}</span>
@@ -590,13 +571,13 @@ function ResultCard({
       )}
 
       {isError && (
-        <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-2 py-1">
+        <div className="text-xs text-stop-700 bg-stop-50 border border-stop-200 rounded-md px-2 py-1">
           {result.error}
         </div>
       )}
 
       {fieldRows.length === 0 ? (
-        <p className="text-sm text-gray-400 italic">
+        <p className="text-sm text-ink-400 italic">
           No fields were extracted with sufficient evidence.
         </p>
       ) : (
@@ -613,7 +594,7 @@ function ResultCard({
             return (
               <label
                 key={key}
-                className="flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+                className="flex items-start gap-2 p-2 rounded-lg hover:bg-ink-50 cursor-pointer"
               >
                 <input
                   type="checkbox"
@@ -630,14 +611,14 @@ function ResultCard({
                   className="mt-1"
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs uppercase tracking-wide text-gray-500">
+                  <div className="text-xs uppercase tracking-wide text-ink-500">
                     {FIELD_LABELS[key]}
                   </div>
-                  <div className="text-sm text-gray-900 break-words">
+                  <div className="text-sm text-ink-900 break-words">
                     {displayValue}
                   </div>
                   {evidence && (
-                    <div className="text-xs text-gray-500 italic mt-1 border-l-2 border-indigo-200 pl-2">
+                    <div className="text-xs text-ink-500 italic mt-1 border-l-2 border-arctic-200 pl-2">
                       Evidence: &ldquo;{evidence}&rdquo;
                     </div>
                   )}

@@ -10,20 +10,20 @@ export default function ProposalPreview({
   return (
     <div
       id="proposal-doc"
-      className="bg-white rounded-xl shadow-lg border border-gray-200 p-10 md:p-14 max-w-4xl mx-auto print:shadow-none print:border-0 print:p-0"
+      className="bg-white rounded-xl shadow-lg border border-ink-200 p-10 md:p-14 max-w-4xl mx-auto print:shadow-none print:border-0 print:p-0"
     >
       {/* Header */}
-      <div className="border-b-2 border-indigo-600 pb-6 mb-8">
+      <div className="border-b-2 border-arctic-600 pb-6 mb-8">
         <div className="flex items-center gap-3 mb-4">
           <img src="/logo.avif" alt="ArcticBlue" className="h-10 w-auto" />
-          <span className="text-xs text-gray-400 uppercase tracking-widest">
+          <span className="text-xs text-ink-400 uppercase tracking-widest">
             AI Training & Advisory
           </span>
         </div>
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">
+        <h1 className="text-3xl md:text-4xl font-bold text-ink-900 leading-tight">
           {proposal.title}
         </h1>
-        <p className="text-lg text-gray-500 mt-2">{proposal.subtitle}</p>
+        <p className="text-lg text-ink-500 mt-2">{proposal.subtitle}</p>
       </div>
 
       <div className="space-y-8">
@@ -32,7 +32,7 @@ export default function ProposalPreview({
         ))}
       </div>
 
-      <div className="border-t border-gray-200 mt-12 pt-6 text-center text-xs text-gray-400">
+      <div className="border-t border-ink-200 mt-12 pt-6 text-center text-xs text-ink-400">
         ArcticBlue AI · arcticblue.ai · Confidential
       </div>
     </div>
@@ -44,10 +44,10 @@ function SectionView({ section }: { section: ProposalSection }) {
     section.level === 2 ? "h2" : section.level === 3 ? "h3" : "h1";
   const headingClass =
     section.level === 2
-      ? "text-2xl font-bold text-gray-900 mt-8 mb-3 pb-2 border-b border-gray-100"
+      ? "text-2xl font-bold text-ink-900 mt-8 mb-3 pb-2 border-b border-ink-100"
       : section.level === 3
-        ? "text-lg font-semibold text-gray-800 mt-5 mb-2"
-        : "text-3xl font-bold text-gray-900 mb-4";
+        ? "text-lg font-semibold text-ink-800 mt-5 mb-2"
+        : "text-3xl font-bold text-ink-900 mb-4";
 
   return (
     <section>
@@ -58,7 +58,7 @@ function SectionView({ section }: { section: ProposalSection }) {
       {section.content.map((para, i) => (
         <p
           key={i}
-          className="text-gray-700 leading-relaxed mb-3"
+          className="text-ink-700 leading-relaxed mb-3"
           dangerouslySetInnerHTML={{ __html: renderInlineFormatting(para) }}
         />
       ))}
@@ -68,7 +68,7 @@ function SectionView({ section }: { section: ProposalSection }) {
           {section.bullets.map((b, i) => (
             <li
               key={i}
-              className="text-gray-700 leading-relaxed"
+              className="text-ink-700 leading-relaxed"
               dangerouslySetInnerHTML={{ __html: renderInlineFormatting(b) }}
             />
           ))}
@@ -77,13 +77,13 @@ function SectionView({ section }: { section: ProposalSection }) {
 
       {section.table && (
         <div className="overflow-x-auto my-4">
-          <table className="w-full border-collapse border border-gray-200 text-sm">
+          <table className="w-full border-collapse border border-ink-200 text-sm">
             <thead>
-              <tr className="bg-indigo-50">
+              <tr className="bg-arctic-50">
                 {section.table.headers.map((h, i) => (
                   <th
                     key={i}
-                    className="border border-gray-200 px-3 py-2 text-left font-semibold text-gray-800"
+                    className="border border-ink-200 px-3 py-2 text-left font-semibold text-ink-800"
                   >
                     {h}
                   </th>
@@ -92,11 +92,11 @@ function SectionView({ section }: { section: ProposalSection }) {
             </thead>
             <tbody>
               {section.table.rows.map((row, ri) => (
-                <tr key={ri} className="hover:bg-gray-50">
+                <tr key={ri} className="hover:bg-ink-50">
                   {row.map((cell, ci) => (
                     <td
                       key={ci}
-                      className="border border-gray-200 px-3 py-2 text-gray-700 align-top"
+                      className="border border-ink-200 px-3 py-2 text-ink-700 align-top"
                       dangerouslySetInnerHTML={{
                         __html: renderInlineFormatting(cell),
                       }}
