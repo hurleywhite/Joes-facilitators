@@ -54,8 +54,11 @@ function NavLink({
       }`}
     >
       {label}
+      {/* Underline sits under the word, not under the header. The previous
+          offset was tuned to one specific header height and broke the
+          moment the nav wrapped onto its own row on a phone. */}
       {active && (
-        <span className="absolute -bottom-[13px] left-0 right-0 h-0.5 rounded-full bg-arctic-500" />
+        <span className="absolute -bottom-0.5 left-0 right-0 h-0.5 rounded-full bg-arctic-500" />
       )}
     </Link>
   );
@@ -89,7 +92,11 @@ export default function AppHeader({
 
   return (
     <header className="sticky top-0 z-50 border-b border-ink-200 bg-white/95 backdrop-blur-sm">
-      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-6">
+      {/* On a laptop this is one row. On a phone it was three — logo, then
+          two nav rows, then the buttons — which ate half the first screen.
+          Ordering puts the actions back up beside the logo and drops the
+          nav underneath as a single full-width row. */}
+      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-6 gap-y-2.5 px-4 py-2.5 sm:px-6 lg:py-3">
         {/* Identity */}
         <Link href="/" className="flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -104,29 +111,27 @@ export default function AppHeader({
           </span>
         </Link>
 
-        {/* Views */}
-        <nav className="flex items-center gap-5">
-          {VIEWS.map((v) => (
-            <NavLink
-              key={v.href}
-              {...v}
-              active={isActive(v.href)}
-            />
-          ))}
-        </nav>
+        <div className="order-3 flex w-full items-center gap-x-5 gap-y-2 overflow-x-auto lg:order-none lg:w-auto">
+          {/* Views */}
+          <nav className="flex shrink-0 items-center gap-5">
+            {VIEWS.map((v) => (
+              <NavLink key={v.href} {...v} active={isActive(v.href)} />
+            ))}
+          </nav>
 
-        <span className="hidden h-4 w-px bg-ink-200 sm:block" />
+          <span className="h-4 w-px shrink-0 bg-ink-200" />
 
-        {/* Capture routes — same job, three doors. Muted because you come
-            here on purpose, not while browsing. */}
-        <nav className="flex items-center gap-4">
-          <span className="eyebrow hidden lg:inline">Log</span>
-          {CAPTURE.map((c) => (
-            <NavLink key={c.href} {...c} active={isActive(c.href)} muted />
-          ))}
-        </nav>
+          {/* Capture routes — same job, three doors. Muted because you come
+              here on purpose, not while browsing. */}
+          <nav className="flex shrink-0 items-center gap-4">
+            <span className="eyebrow hidden lg:inline">Log</span>
+            {CAPTURE.map((c) => (
+              <NavLink key={c.href} {...c} active={isActive(c.href)} muted />
+            ))}
+          </nav>
+        </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="order-2 ml-auto flex items-center gap-2 lg:order-none">
           {children}
           <button
             type="button"
