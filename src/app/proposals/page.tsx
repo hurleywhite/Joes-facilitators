@@ -168,21 +168,21 @@ export default function ProposalsPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 print:bg-white">
+    <main className="min-h-screen bg-ink-50 print:bg-white">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 print:hidden">
+      <header className="bg-white border-b border-ink-200 sticky top-0 z-40 print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/" className="text-gray-500 hover:text-gray-700">
+            <Link href="/" className="text-ink-500 hover:text-ink-700">
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <img src="/logo.avif" alt="ArcticMind" className="h-10 w-auto" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-indigo-600" />
+              <h1 className="text-xl font-bold text-ink-900 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-arctic-600" />
                 Proposal Generator
               </h1>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-ink-500">
                 Minimal input. Smart facilitator matching. Client-ready output.
               </p>
             </div>
@@ -191,23 +191,23 @@ export default function ProposalsPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => { setStep("input"); setProposal(null); }}
-                className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                className="px-3 py-2 text-sm bg-ink-100 text-ink-700 rounded-lg hover:bg-ink-200"
               >
                 New proposal
               </button>
               <button
                 onClick={handleCopyHTML}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-ink-100 text-ink-700 rounded-lg hover:bg-ink-200"
               >
                 {copied ? (
-                  <><Check className="w-4 h-4 text-green-600" /> Copied</>
+                  <><Check className="w-4 h-4 text-ok-600" /> Copied</>
                 ) : (
                   <><Copy className="w-4 h-4" /> Copy HTML</>
                 )}
               </button>
               <button
                 onClick={handlePrint}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-arctic-600 text-white rounded-lg hover:bg-arctic-700"
               >
                 <Printer className="w-4 h-4" /> Save PDF
               </button>
@@ -221,9 +221,9 @@ export default function ProposalsPage() {
         {!proposal && (
           <div className="flex items-center gap-2 text-xs print:hidden">
             <StepPill label="1 · Context" active={step === "input"} done={step !== "input"} />
-            <div className="flex-1 h-px bg-gray-200" />
+            <div className="flex-1 h-px bg-ink-200" />
             <StepPill label="2 · Team" active={step === "team"} done={step === "preview"} />
-            <div className="flex-1 h-px bg-gray-200" />
+            <div className="flex-1 h-px bg-ink-200" />
             <StepPill label="3 · Preview" active={(step as Step) === "preview"} done={false} />
           </div>
         )}
@@ -231,16 +231,16 @@ export default function ProposalsPage() {
         {/* STEP 1: Input */}
         {step === "input" && !proposal && (
           <div className="space-y-5 print:hidden">
-            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl p-5">
-              <h2 className="text-lg font-bold text-gray-900 mb-1">
-                Who's the client?
+            <div className="bg-white border border-arctic-100 rounded-xl p-5">
+              <h2 className="text-lg font-bold text-ink-900 mb-1">
+                Who is this for?
               </h2>
-              <p className="text-sm text-gray-600">
-                Give me a company name and a few sentences of context. I'll match facilitators from the pool and draft the proposal.
+              <p className="text-sm text-ink-600">
+                Company name plus a few sentences of context. We pick the team from the pool and draft the proposal around them.
               </p>
             </div>
 
-            <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+            <div className="bg-white border border-ink-200 rounded-xl p-6 space-y-4">
               <Field label="Client / Company name" required>
                 <input
                   type="text"
@@ -257,7 +257,7 @@ export default function ProposalsPage() {
                     type="button"
                     onClick={handlePullSlackContext}
                     disabled={!clientName.trim() || slackLoading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-ink-50 text-ink-700 border border-ink-200 rounded-lg hover:bg-ink-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {slackLoading ? (
                       <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Searching Slack...</>
@@ -266,7 +266,7 @@ export default function ProposalsPage() {
                     )}
                   </button>
                   {slackStatus && (
-                    <span className="text-xs text-gray-500">{slackStatus}</span>
+                    <span className="text-xs text-ink-500">{slackStatus}</span>
                   )}
                 </div>
                 <textarea
@@ -276,7 +276,7 @@ export default function ProposalsPage() {
                   placeholder="e.g., $10M RR self-funded biz. CEO wants 1:1 AI training starting from zero. Kicking off in June. Sub'd from Andrew Hoag."
                   className={inputClass}
                 />
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-ink-400 mt-1">
                   Click the Slack button to auto-pull mentions of the company, or paste context manually.
                 </p>
               </Field>
@@ -353,12 +353,12 @@ export default function ProposalsPage() {
               <button
                 onClick={handleResearch}
                 disabled={!clientName || loading}
-                className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 font-medium"
+                className="flex items-center gap-2 px-6 py-3 bg-arctic-600 text-white rounded-lg hover:bg-arctic-700 disabled:bg-ink-300 font-medium"
               >
                 {loading ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Matching facilitators...</>
                 ) : (
-                  <><Sparkles className="w-4 h-4" /> Match facilitators</>
+                  <><Users className="w-4 h-4" /> Match facilitators</>
                 )}
               </button>
             </div>
@@ -368,17 +368,17 @@ export default function ProposalsPage() {
         {/* STEP 2: Team selection */}
         {step === "team" && (
           <div className="space-y-5 print:hidden">
-            <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <div className="bg-white border border-ink-200 rounded-xl p-5">
               <div className="flex items-center gap-2 mb-2">
-                <Users className="w-5 h-5 text-indigo-600" />
-                <h2 className="text-lg font-bold text-gray-900">
+                <Users className="w-5 h-5 text-arctic-600" />
+                <h2 className="text-lg font-bold text-ink-900">
                   Recommended facilitators
                 </h2>
               </div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-ink-600">
                 Ranked by availability, region match, focus match, and track record.
                 Select the ones to propose for {clientName}.
-                <span className="ml-2 font-semibold text-indigo-600">
+                <span className="ml-2 font-semibold text-arctic-600">
                   {selectedIds.size} selected
                 </span>
               </p>
@@ -398,14 +398,14 @@ export default function ProposalsPage() {
             <div className="flex justify-between">
               <button
                 onClick={() => setStep("input")}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+                className="px-4 py-2 text-sm text-ink-600 hover:text-ink-900"
               >
                 ← Back
               </button>
               <button
                 onClick={handleGenerate}
                 disabled={selectedIds.size === 0 || loading}
-                className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 font-medium"
+                className="flex items-center gap-2 px-6 py-3 bg-arctic-600 text-white rounded-lg hover:bg-arctic-700 disabled:bg-ink-300 font-medium"
               >
                 {loading ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Drafting proposal...</>
@@ -418,7 +418,7 @@ export default function ProposalsPage() {
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm print:hidden">
+          <div className="bg-stop-50 border border-stop-200 text-stop-700 rounded-xl p-4 text-sm print:hidden">
             {error}
           </div>
         )}
@@ -435,7 +435,7 @@ export default function ProposalsPage() {
 }
 
 const inputClass =
-  "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400";
+  "w-full px-3 py-2 border border-ink-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-arctic-200 focus:border-arctic-400";
 
 function Field({
   label,
@@ -448,9 +448,9 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">
+      <label className="block text-xs font-medium text-ink-600 mb-1">
         {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
+        {required && <span className="text-stop-600 ml-0.5">*</span>}
       </label>
       {children}
     </div>
@@ -470,10 +470,10 @@ function StepPill({
     <span
       className={`px-3 py-1 rounded-full font-medium ${
         active
-          ? "bg-indigo-600 text-white"
+          ? "bg-arctic-600 text-white"
           : done
-            ? "bg-green-100 text-green-700"
-            : "bg-gray-100 text-gray-500"
+            ? "bg-ok-50 text-ok-700"
+            : "bg-ink-100 text-ink-500"
       }`}
     >
       {label}

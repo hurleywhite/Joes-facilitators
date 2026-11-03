@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import {
-  ArrowLeft,
   Briefcase,
   Calendar,
   MapPin,
@@ -14,6 +12,7 @@ import {
 import { EngagementRecord, EngagementRecordStatus, Facilitator } from "@/types/facilitator";
 import FacilitatorDrawer from "@/components/FacilitatorDrawer";
 import EngagementDrawer from "@/components/EngagementDrawer";
+import AppHeader, { HeaderButton } from "@/components/AppHeader";
 
 export default function EngagementsPage() {
   const [engagements, setEngagements] = useState<EngagementRecord[]>([]);
@@ -97,57 +96,40 @@ export default function EngagementsPage() {
   }, [engagements]);
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-ink-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="text-gray-500 hover:text-gray-700">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <img src="/logo.avif" alt="ArcticMind" className="h-10 w-auto" />
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <Briefcase className="w-5 h-5 text-indigo-600" />
-                Engagements
-              </h1>
-              <p className="text-xs text-gray-500">
-                Active, upcoming, and recent workshop deliveries.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={fetchData}
-            disabled={loading}
-            className="flex items-center gap-2 px-3 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
-        </div>
-      </header>
+      <AppHeader>
+        <HeaderButton onClick={fetchData} disabled={loading} title="Pull the latest from the sheet">
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          <span className="hidden sm:inline">Refresh</span>
+        </HeaderButton>
+      </AppHeader>
+
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Seed-data banner — soft, informational */}
+        {/* Sample-data notice. This used to be a full-width tinted banner
+            quoting an environment-variable name — the loudest thing on the
+            page, and addressed to whoever deploys the app rather than
+            whoever reads it. The fact that matters to a reader is "these
+            aren't your real engagements"; the fix belongs in a tooltip. */}
         {usingSeed && (
-          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-900 flex items-center justify-between">
-            <span>
-              Showing built-in seed data. To use a live Google Sheet, set{" "}
-              <code className="bg-indigo-100 px-1 rounded">GOOGLE_ENGAGEMENTS_CSV_URL</code>{" "}
-              in Vercel.
-            </span>
-          </div>
+          <p
+            className="text-xs text-ink-500"
+            title="Set GOOGLE_ENGAGEMENTS_CSV_URL in Vercel to point this page at the live sheet."
+          >
+            Showing sample engagements — the live sheet isn&apos;t connected yet.
+          </p>
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">
+          <div className="bg-stop-50 border border-stop-200 text-stop-700 rounded-xl p-4 text-sm">
             {error}
           </div>
         )}
 
         {loading && (
           <div className="flex items-center justify-center py-20">
-            <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+            <RefreshCw className="w-8 h-8 text-arctic-400 animate-spin" />
           </div>
         )}
 
@@ -182,9 +164,7 @@ export default function EngagementsPage() {
             {/* Active + Upcoming side-by-side on desktop */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Section
-                title="Current / Ongoing"
-                subtitle="Engagements in flight right now"
-                accent="green"
+                title="Running now"
                 items={grouped.Active}
                 emptyMessage="No active engagements."
                 facilitatorsByName={facilitatorsByName}
@@ -193,8 +173,6 @@ export default function EngagementsPage() {
               />
               <Section
                 title="Upcoming"
-                subtitle="Booked and scheduled to start"
-                accent="indigo"
                 items={grouped.Upcoming}
                 emptyMessage="No upcoming engagements."
                 facilitatorsByName={facilitatorsByName}
@@ -207,8 +185,6 @@ export default function EngagementsPage() {
             {grouped["On Hold"].length > 0 && (
               <Section
                 title="On Hold"
-                subtitle="Paused or pending decisions"
-                accent="amber"
                 items={grouped["On Hold"]}
                 emptyMessage=""
                 facilitatorsByName={facilitatorsByName}
@@ -221,8 +197,6 @@ export default function EngagementsPage() {
             {grouped.Completed.length > 0 && (
               <Section
                 title="Recently Completed"
-                subtitle="Delivered engagements"
-                accent="gray"
                 items={grouped.Completed}
                 emptyMessage=""
                 facilitatorsByName={facilitatorsByName}
@@ -256,8 +230,6 @@ export default function EngagementsPage() {
 
 function Section({
   title,
-  subtitle,
-  accent,
   items,
   emptyMessage,
   facilitatorsByName,
@@ -265,35 +237,26 @@ function Section({
   onPickEngagement,
 }: {
   title: string;
-  subtitle: string;
-  accent: "green" | "indigo" | "amber" | "gray";
   items: EngagementRecord[];
   emptyMessage: string;
   facilitatorsByName: Map<string, Facilitator>;
   onPickFacilitator: (f: Facilitator) => void;
   onPickEngagement: (e: EngagementRecord) => void;
 }) {
-  const accentClasses: Record<string, string> = {
-    green: "border-l-green-500 bg-green-50/40",
-    indigo: "border-l-indigo-500 bg-indigo-50/40",
-    amber: "border-l-amber-500 bg-amber-50/40",
-    gray: "border-l-gray-300 bg-gray-50/40",
-  };
+  // The 4px coloured bar down the side of each column was decoration —
+  // every card inside already carries its own status badge, so the bar
+  // repeated information in a second visual language. Columns are plain
+  // surfaces now; the heading does the labelling.
   return (
-    <section
-      className={`bg-white border border-gray-200 border-l-4 rounded-xl p-5 ${accentClasses[accent]}`}
-    >
-      <div className="flex items-baseline justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-          <p className="text-xs text-gray-500">{subtitle}</p>
-        </div>
-        <span className="text-sm font-semibold text-gray-400">
+    <section className="rounded-lg border border-ink-200 bg-white p-4">
+      <div className="mb-3 flex items-baseline justify-between border-b border-ink-100 pb-2.5">
+        <h2 className="text-sm font-semibold text-ink-900">{title}</h2>
+        <span className="tnum text-sm font-medium text-ink-400">
           {items.length}
         </span>
       </div>
       {items.length === 0 ? (
-        <div className="flex items-center gap-2 text-sm text-gray-400 py-6">
+        <div className="flex items-center gap-2 text-sm text-ink-400 py-6">
           <Inbox className="w-4 h-4" />
           {emptyMessage}
         </div>
@@ -336,7 +299,13 @@ function EngagementCard({
   const locationLine = e.location ? e.location : "";
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
+    // Whole card is the target. It used to carry a "View team & details →"
+    // link at the bottom pointing at the same drawer the title already
+    // opened — two affordances, one destination, on every card.
+    <div
+      onClick={() => onPickEngagement(e)}
+      className="cursor-pointer rounded-lg border border-ink-200 bg-white p-3.5 transition-colors hover:border-arctic-300 hover:bg-arctic-50/40"
+    >
       <div className="flex items-start justify-between gap-3">
         {/* Title block doubles as the open-drawer trigger. Stays as a
             button so screenreaders see it as an action; the chips
@@ -346,16 +315,16 @@ function EngagementCard({
           onClick={() => onPickEngagement(e)}
           className="min-w-0 flex-1 text-left group"
         >
-          <h3 className="font-semibold text-gray-900 text-sm truncate group-hover:text-indigo-700 transition-colors">
+          <h3 className="font-semibold text-ink-900 text-sm truncate group-hover:text-arctic-700 transition-colors">
             {title}
           </h3>
           {subtitle && (
-            <div className="text-xs font-medium text-indigo-700 mt-0.5 truncate">
+            <div className="text-xs font-medium text-arctic-700 mt-0.5 truncate">
               {subtitle}
             </div>
           )}
           {locationLine && (
-            <div className="text-xs text-gray-500 mt-0.5 truncate">
+            <div className="text-xs text-ink-500 mt-0.5 truncate">
               {locationLine}
             </div>
           )}
@@ -363,7 +332,7 @@ function EngagementCard({
         <StatusBadge status={e.status} />
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-gray-500">
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-ink-500">
         {dateRange && (
           <span className="inline-flex items-center gap-1">
             <Calendar className="w-3.5 h-3.5" />
@@ -386,7 +355,7 @@ function EngagementCard({
 
       {e.facilitators.length > 0 && (
         <div className="mt-2 flex items-start gap-1.5 text-xs">
-          <Users className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
+          <Users className="w-3.5 h-3.5 text-ink-400 mt-0.5 flex-shrink-0" />
           <div className="flex flex-wrap gap-1">
             {e.facilitators.map((name, i) => {
               const match = facilitatorsByName.get(name.toLowerCase().trim());
@@ -395,8 +364,8 @@ function EngagementCard({
                   <button
                     key={i}
                     type="button"
-                    onClick={() => onPickFacilitator(match)}
-                    className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded font-medium hover:bg-indigo-100 hover:text-indigo-900 transition-colors cursor-pointer"
+                    onClick={(ev) => { ev.stopPropagation(); onPickFacilitator(match); }}
+                    className="px-1.5 py-0.5 bg-arctic-50 text-arctic-700 rounded font-medium hover:bg-arctic-100 hover:text-arctic-900 transition-colors cursor-pointer"
                     title={`View ${name}'s profile`}
                   >
                     {name}
@@ -406,7 +375,7 @@ function EngagementCard({
               return (
                 <span
                   key={i}
-                  className="px-1.5 py-0.5 bg-gray-50 text-gray-600 border border-dashed border-gray-300 rounded font-medium"
+                  className="px-1.5 py-0.5 bg-ink-50 text-ink-600 border border-dashed border-ink-300 rounded font-medium"
                   title="Not in the facilitator pool"
                 >
                   {name}
@@ -418,37 +387,28 @@ function EngagementCard({
       )}
 
       {e.notes && (
-        <p className="mt-2 text-xs text-gray-500 italic line-clamp-2">
+        <p className="mt-2 text-xs text-ink-500 italic line-clamp-2">
           {e.notes}
         </p>
       )}
 
       {e.valueUSD && (
-        <div className="mt-2 text-xs font-medium text-gray-600">
+        <div className="mt-2 text-xs font-medium text-ink-600">
           {e.valueUSD}
         </div>
       )}
 
-      {/* View-team affordance — visible at the bottom so the click
-          target is discoverable. Title click does the same thing. */}
-      <button
-        type="button"
-        onClick={() => onPickEngagement(e)}
-        className="mt-3 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-      >
-        View team &amp; details →
-      </button>
     </div>
   );
 }
 
 function StatusBadge({ status }: { status: EngagementRecordStatus }) {
   const map: Record<EngagementRecordStatus, string> = {
-    Active: "bg-green-100 text-green-700 border-green-200",
-    Upcoming: "bg-indigo-100 text-indigo-700 border-indigo-200",
-    Completed: "bg-gray-100 text-gray-600 border-gray-200",
-    Cancelled: "bg-red-100 text-red-700 border-red-200",
-    "On Hold": "bg-amber-100 text-amber-700 border-amber-200",
+    Active: "bg-ok-50 text-ok-700 border-ok-200",
+    Upcoming: "bg-arctic-100 text-arctic-700 border-arctic-200",
+    Completed: "bg-ink-100 text-ink-600 border-ink-200",
+    Cancelled: "bg-stop-50 text-stop-700 border-stop-200",
+    "On Hold": "bg-warn-50 text-warn-700 border-warn-200",
   };
   return (
     <span
@@ -469,10 +429,10 @@ function Chip({
   tone: "green" | "indigo" | "gray" | "amber";
 }) {
   const map: Record<string, string> = {
-    green: "bg-green-100 text-green-700",
-    indigo: "bg-indigo-100 text-indigo-700",
-    gray: "bg-gray-100 text-gray-600",
-    amber: "bg-amber-100 text-amber-700",
+    green: "bg-ok-50 text-ok-700",
+    indigo: "bg-arctic-100 text-arctic-700",
+    gray: "bg-ink-100 text-ink-600",
+    amber: "bg-warn-50 text-warn-700",
   };
   return (
     <span

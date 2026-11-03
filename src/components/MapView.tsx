@@ -144,7 +144,7 @@ export default function MapView({
   return (
     <div
       ref={mapRef}
-      className="w-full h-full rounded-xl overflow-hidden border border-gray-200"
+      className="w-full h-full rounded-xl overflow-hidden border border-ink-200"
       style={{ minHeight: "500px" }}
     />
   );

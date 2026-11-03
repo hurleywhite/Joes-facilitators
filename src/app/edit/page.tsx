@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import Link from "next/link";
+import AppHeader from "@/components/AppHeader";
 import {
-  ArrowLeft,
+  ListChecks,
   Send,
   Loader2,
-  Sparkles,
-  Notebook,
   Check,
   X,
   AlertCircle,
@@ -184,26 +182,13 @@ export default function EditPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="text-gray-500 hover:text-gray-700">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <img src="/logo.avif" alt="ArcticMind" className="h-8 w-auto" />
-            <div>
-              <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Notebook className="w-5 h-5 text-indigo-600" />
-                Notes → Sheet
-              </h1>
-              <p className="text-[11px] text-gray-500">
-                Plain-English notes that update the spreadsheet automatically
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
+    <main className="min-h-screen bg-ink-50 flex flex-col">
+      <AppHeader />
+      <div className="mx-auto w-full max-w-5xl px-4 pt-6 sm:px-6">
+        <h1 className="text-lg font-semibold tracking-tight text-ink-900">Notes</h1>
+        <p className="mt-0.5 text-sm text-ink-500">Type what happened. We turn it into sheet edits and show you every one before it lands.</p>
+      </div>
+
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-3">
@@ -215,7 +200,7 @@ export default function EditPage() {
             if (t.role === "user") {
               return (
                 <div key={i} className="flex justify-end">
-                  <div className="bg-indigo-600 text-white rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[80%] text-sm">
+                  <div className="bg-arctic-600 text-white rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[80%] text-sm">
                     {t.content}
                   </div>
                 </div>
@@ -224,7 +209,7 @@ export default function EditPage() {
             if (t.role === "assistant") {
               return (
                 <div key={i} className="flex items-start">
-                  <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-sm px-4 py-2.5 max-w-[85%] text-sm text-gray-800">
+                  <div className="bg-white border border-ink-200 rounded-2xl rounded-bl-sm px-4 py-2.5 max-w-[85%] text-sm text-ink-800">
                     {t.content}
                   </div>
                 </div>
@@ -235,7 +220,7 @@ export default function EditPage() {
           })}
 
           {loading && (
-            <div className="flex items-center gap-2 text-sm text-gray-500 px-4">
+            <div className="flex items-center gap-2 text-sm text-ink-500 px-4">
               <Loader2 className="w-4 h-4 animate-spin" />
               Reading your note…
             </div>
@@ -243,7 +228,7 @@ export default function EditPage() {
         </div>
       </div>
 
-      <div className="border-t border-gray-200 bg-white sticky bottom-0">
+      <div className="border-t border-ink-200 bg-white sticky bottom-0">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3">
           <form
             onSubmit={(e) => {
@@ -257,13 +242,13 @@ export default function EditPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="e.g., add Ryan to the Tamkeen engagement"
-              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+              className="flex-1 px-4 py-2.5 border border-ink-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-arctic-200 focus:border-arctic-400"
               disabled={loading}
             />
             <button
               type="submit"
               disabled={loading || !input.trim()}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 text-sm font-medium"
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-arctic-600 text-white rounded-lg hover:bg-arctic-700 disabled:bg-ink-300 text-sm font-medium"
             >
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -273,7 +258,7 @@ export default function EditPage() {
               Parse
             </button>
           </form>
-          <p className="text-[11px] text-gray-400 mt-2 px-1">
+          <p className="text-[11px] text-ink-400 mt-2 px-1">
             Every change shows a preview — nothing writes to the sheet without a Confirm click.
           </p>
         </div>
@@ -284,23 +269,21 @@ export default function EditPage() {
 
 function Welcome({ onPick }: { onPick: (s: string) => void }) {
   return (
-    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl p-6">
-      <div className="flex items-center gap-2 mb-2">
-        <Sparkles className="w-5 h-5 text-indigo-600" />
-        <h2 className="text-lg font-bold text-gray-900">
-          Update the sheet without opening it
-        </h2>
-      </div>
-      <p className="text-sm text-gray-600 mb-4">
-        Type a short note. I&apos;ll figure out what changed, show you a
-        preview, and write it to the spreadsheet only after you confirm.
+    <div className="mx-auto max-w-xl py-12 text-center sm:py-16">
+      <h2 className="text-xl font-semibold tracking-tight text-ink-900">
+        Update the sheet without opening it
+      </h2>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-ink-500">
+        Type what happened, the way you&apos;d say it to a colleague. You get a
+        preview of every cell that would change, and nothing is written until
+        you confirm it.
       </p>
-      <div className="space-y-2">
+      <div className="mt-6 space-y-2 text-left">
         {SUGGESTIONS.map((s) => (
           <button
             key={s}
             onClick={() => onPick(s)}
-            className="block w-full text-left bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors"
+            className="block w-full text-left bg-white border border-ink-200 rounded-lg px-3 py-2 text-sm text-ink-700 hover:border-arctic-300 hover:bg-arctic-50/30 transition-colors"
           >
             {s}
           </button>
@@ -325,26 +308,26 @@ function PreviewCard({
     <div
       className={`border rounded-xl p-4 ${
         status === "applied"
-          ? "bg-green-50 border-green-200"
+          ? "bg-ok-50 border-ok-200"
           : status === "failed"
-            ? "bg-red-50 border-red-200"
+            ? "bg-stop-50 border-stop-200"
             : status === "cancelled"
-              ? "bg-gray-50 border-gray-200"
-              : "bg-amber-50 border-amber-200"
+              ? "bg-ink-50 border-ink-200"
+              : "bg-warn-50 border-warn-200"
       }`}
     >
       <div className="flex items-start gap-2">
         {status === "applied" ? (
-          <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+          <Check className="w-5 h-5 text-ok-600 flex-shrink-0 mt-0.5" />
         ) : status === "failed" ? (
-          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <AlertCircle className="w-5 h-5 text-stop-600 flex-shrink-0 mt-0.5" />
         ) : status === "cancelled" ? (
-          <X className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
+          <X className="w-5 h-5 text-ink-400 flex-shrink-0 mt-0.5" />
         ) : (
-          <Sparkles className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <ListChecks className="w-5 h-5 text-warn-600 flex-shrink-0 mt-0.5" />
         )}
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
+          <div className="text-xs font-semibold text-ink-700 uppercase tracking-wider mb-1.5">
             {status === "applied"
               ? "Applied"
               : status === "failed"
@@ -356,7 +339,7 @@ function PreviewCard({
                     : `Confirm ${turn.steps.length} change${isMulti ? "s" : ""}`}
           </div>
           <ol
-            className={`space-y-1.5 text-sm text-gray-800 ${
+            className={`space-y-1.5 text-sm text-ink-800 ${
               isMulti ? "list-decimal list-inside" : ""
             }`}
           >
@@ -368,7 +351,7 @@ function PreviewCard({
                   {result && (
                     <span
                       className={`ml-2 text-[11px] inline-flex items-center gap-0.5 ${
-                        result.ok ? "text-green-700" : "text-red-700"
+                        result.ok ? "text-ok-700" : "text-stop-700"
                       }`}
                     >
                       {result.ok ? (
@@ -384,7 +367,7 @@ function PreviewCard({
             })}
           </ol>
           {turn.message && !turn.perStepResults && (
-            <div className="text-xs text-gray-500 mt-1.5">{turn.message}</div>
+            <div className="text-xs text-ink-500 mt-1.5">{turn.message}</div>
           )}
         </div>
       </div>
@@ -393,20 +376,20 @@ function PreviewCard({
         <div className="flex items-center justify-end gap-2 mt-3">
           <button
             onClick={onCancel}
-            className="text-xs text-gray-500 hover:text-gray-800 px-3 py-1.5"
+            className="text-xs text-ink-500 hover:text-ink-800 px-3 py-1.5"
           >
             Cancel
           </button>
           <button
             onClick={onApply}
-            className="text-xs font-medium bg-indigo-600 text-white rounded-lg px-3 py-1.5 hover:bg-indigo-700"
+            className="text-xs font-medium bg-arctic-600 text-white rounded-lg px-3 py-1.5 hover:bg-arctic-700"
           >
             {isMulti ? `Confirm all ${turn.steps.length}` : "Confirm & apply"}
           </button>
         </div>
       )}
       {status === "applying" && (
-        <div className="flex items-center justify-end gap-2 mt-3 text-xs text-amber-700">
+        <div className="flex items-center justify-end gap-2 mt-3 text-xs text-warn-700">
           <Loader2 className="w-3.5 h-3.5 animate-spin" /> Writing to sheet…
         </div>
       )}

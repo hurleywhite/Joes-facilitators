@@ -109,17 +109,17 @@ export default function AvailabilityPage() {
 
   if (done) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 flex flex-col">
+      <main className="min-h-screen bg-white/40 flex flex-col">
         <Header minimal />
         <div className="flex-1 flex items-center justify-center p-6">
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm max-w-md w-full p-10 text-center">
-            <div className="w-14 h-14 rounded-full bg-green-100 text-green-700 flex items-center justify-center mx-auto mb-5">
+          <div className="bg-white border border-ink-200 rounded-2xl shadow-sm max-w-md w-full p-10 text-center">
+            <div className="w-14 h-14 rounded-full bg-ok-50 text-ok-700 flex items-center justify-center mx-auto mb-5">
               <Check className="w-7 h-7" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            <h1 className="text-2xl font-bold text-ink-900 mb-2">
               Got it, thanks!
             </h1>
-            <p className="text-sm text-gray-600 leading-relaxed">
+            <p className="text-sm text-ink-600 leading-relaxed">
               Your availability has been recorded. The ArcticMind team will see
               it automatically — no further action needed. You can resubmit any
               time to update your windows.
@@ -132,7 +132,7 @@ export default function AvailabilityPage() {
                 setBlockedRanges([{ start: "", end: "" }]);
                 setNotes("");
               }}
-              className="mt-6 inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800"
+              className="mt-6 inline-flex items-center text-sm font-medium text-arctic-600 hover:text-arctic-800"
             >
               Submit another response →
             </button>
@@ -144,15 +144,15 @@ export default function AvailabilityPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 flex flex-col">
+    <main className="min-h-screen bg-white/40 flex flex-col">
       <Header />
       <div className="flex-1 py-10 px-4">
-        <div className="max-w-2xl mx-auto bg-white border border-gray-200 rounded-2xl shadow-sm p-8 sm:p-10 space-y-7">
-        <header className="border-b border-gray-100 pb-5">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
+        <div className="max-w-2xl mx-auto bg-white border border-ink-200 rounded-2xl shadow-sm p-8 sm:p-10 space-y-7">
+        <header className="border-b border-ink-100 pb-5">
+          <h1 className="text-2xl sm:text-3xl font-bold text-ink-900 tracking-tight">
             Share your availability
           </h1>
-          <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+          <p className="text-sm text-ink-600 mt-2 leading-relaxed">
             Let the ArcticMind team know when you&apos;re open to facilitate
             engagements. We&apos;ll match you with the right engagements. You
             can update this any time — your latest submission overwrites the
@@ -259,10 +259,10 @@ export default function AvailabilityPage() {
                     }
                     className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
                       !selectable
-                        ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed line-through decoration-gray-300"
+                        ? "bg-ink-50 text-ink-300 border-ink-100 cursor-not-allowed line-through decoration-ink-300"
                         : selected
-                          ? "bg-indigo-600 text-white border-indigo-600"
-                          : "bg-white text-gray-700 border-gray-200 hover:border-indigo-300"
+                          ? "bg-arctic-600 text-white border-arctic-600"
+                          : "bg-white text-ink-700 border-ink-200 hover:border-arctic-300"
                     }`}
                   >
                     Q{q}
@@ -270,7 +270,7 @@ export default function AvailabilityPage() {
                 );
               })}
             </div>
-            <p className="text-xs text-gray-400 mt-1.5">
+            <p className="text-xs text-ink-400 mt-1.5">
               {quarters.size > 0
                 ? Array.from(quarters)
                     .sort((a, b) => a - b)
@@ -299,7 +299,7 @@ export default function AvailabilityPage() {
                     }
                     className={inputClass}
                   />
-                  <span className="text-xs text-gray-400">to</span>
+                  <span className="text-xs text-ink-400">to</span>
                   <input
                     type="date"
                     value={r.end}
@@ -320,7 +320,7 @@ export default function AvailabilityPage() {
                           prev.filter((_, j) => j !== i)
                         )
                       }
-                      className="text-gray-400 hover:text-red-500"
+                      className="text-ink-400 hover:text-stop-600"
                       aria-label="Remove range"
                     >
                       <X className="w-4 h-4" />
@@ -333,7 +333,7 @@ export default function AvailabilityPage() {
                 onClick={() =>
                   setBlockedRanges((prev) => [...prev, { start: "", end: "" }])
                 }
-                className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800"
+                className="inline-flex items-center gap-1 text-xs text-arctic-600 hover:text-arctic-800"
               >
                 <Plus className="w-3 h-3" /> Add another range
               </button>
@@ -351,8 +351,8 @@ export default function AvailabilityPage() {
                 onClick={() => setWillingToTravel(t)}
                 className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
                   willingToTravel === t
-                    ? "bg-indigo-600 text-white border-indigo-600"
-                    : "bg-white text-gray-700 border-gray-200 hover:border-indigo-300"
+                    ? "bg-arctic-600 text-white border-arctic-600"
+                    : "bg-white text-ink-700 border-ink-200 hover:border-arctic-300"
                 }`}
               >
                 {t === "Domestic" ? "Domestic only" : t}
@@ -373,7 +373,7 @@ export default function AvailabilityPage() {
         </Field>
 
         {error && (
-          <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
+          <div className="flex items-start gap-2 bg-stop-50 border border-stop-200 text-stop-700 rounded-lg p-3 text-sm">
             <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
@@ -383,7 +383,7 @@ export default function AvailabilityPage() {
           <button
             onClick={submit}
             disabled={submitting}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 disabled:bg-gray-300 shadow-sm transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-arctic-600 text-white font-semibold rounded-xl hover:bg-arctic-700 disabled:bg-ink-300 shadow-sm transition-colors"
           >
             {submitting ? (
               <>
@@ -393,7 +393,7 @@ export default function AvailabilityPage() {
               "Submit availability"
             )}
           </button>
-          <p className="text-[11px] text-gray-400 text-center mt-3">
+          <p className="text-[11px] text-ink-400 text-center mt-3">
             Your response is shared only with the ArcticMind facilitation
             team. We don&apos;t share it externally.
           </p>
@@ -409,16 +409,16 @@ export default function AvailabilityPage() {
 
 function Header({ minimal = false }: { minimal?: boolean }) {
   return (
-    <header className="bg-white/80 backdrop-blur border-b border-gray-200">
+    <header className="bg-white/80 backdrop-blur border-b border-ink-200">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img src="/logo.avif" alt="ArcticMind" className="h-8 w-auto" />
           <div>
-            <div className="text-sm font-bold text-gray-900 tracking-tight">
+            <div className="text-sm font-bold text-ink-900 tracking-tight">
               ArcticMind
             </div>
             {!minimal && (
-              <div className="text-[11px] text-gray-500">
+              <div className="text-[11px] text-ink-500">
                 Facilitator availability
               </div>
             )}
@@ -428,7 +428,7 @@ function Header({ minimal = false }: { minimal?: boolean }) {
           href="https://arcticblue.ai"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-xs text-gray-500 hover:text-gray-800"
+          className="text-xs text-ink-500 hover:text-ink-800"
         >
           arcticblue.ai
         </a>
@@ -439,8 +439,8 @@ function Header({ minimal = false }: { minimal?: boolean }) {
 
 function Footer() {
   return (
-    <footer className="border-t border-gray-200 bg-white/60 mt-8">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between text-[11px] text-gray-400">
+    <footer className="border-t border-ink-200 bg-white/60 mt-8">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between text-[11px] text-ink-400">
         <span>
           ArcticMind &middot; AI training &amp; facilitation
         </span>
@@ -453,7 +453,7 @@ function Footer() {
 /* ---------- helpers ---------- */
 
 const inputClass =
-  "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400";
+  "w-full px-3 py-2 border border-ink-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-arctic-200 focus:border-arctic-400";
 
 function Field({
   label,
@@ -466,9 +466,9 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">
+      <label className="block text-xs font-medium text-ink-600 mb-1">
         {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
+        {required && <span className="text-stop-600 ml-0.5">*</span>}
       </label>
       {children}
     </div>
@@ -492,18 +492,18 @@ function RadioRow({
       onClick={onChange}
       className={`w-full text-left flex items-start gap-3 px-3 py-2.5 rounded-lg border transition-colors ${
         checked
-          ? "border-indigo-500 bg-indigo-50/50 ring-1 ring-indigo-200"
-          : "border-gray-200 hover:border-indigo-300"
+          ? "border-arctic-500 bg-arctic-50/50 ring-1 ring-arctic-200"
+          : "border-ink-200 hover:border-arctic-300"
       }`}
     >
       <span
         className={`flex-shrink-0 mt-0.5 w-4 h-4 rounded-full border-2 ${
-          checked ? "border-indigo-600 bg-indigo-600" : "border-gray-300"
+          checked ? "border-arctic-600 bg-arctic-600" : "border-ink-300"
         }`}
       />
       <span className="flex-1">
-        <span className="block text-sm font-medium text-gray-900">{title}</span>
-        <span className="block text-xs text-gray-500">{subtitle}</span>
+        <span className="block text-sm font-medium text-ink-900">{title}</span>
+        <span className="block text-xs text-ink-500">{subtitle}</span>
       </span>
     </button>
   );

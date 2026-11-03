@@ -1,100 +1,80 @@
 "use client";
 
 import { Facilitator } from "@/types/facilitator";
-import { Users, Monitor, Globe, Contact } from "lucide-react";
 
-interface StatsBarProps {
-  facilitators: Facilitator[];
-  activeFocus?: string;
-  onFocusClick?: (focus: string) => void;
-}
-
+/**
+ * Five pastel tiles with five different coloured icons used to sit here.
+ * They cost a whole band of vertical space to say something you could read
+ * in a line — and the colours implied a meaning the numbers don't have.
+ *
+ * Now it's one strip: the focus counts double as filters (that was always
+ * the useful part), and the two facts you can't filter on sit to the right.
+ */
 export default function StatsBar({
   facilitators,
   activeFocus = "All",
   onFocusClick,
-}: StatsBarProps) {
-  const total = facilitators.length;
-  const facilCount = facilitators.filter(
-    (f) => f.focus === "Facilitation"
-  ).length;
-  const techCount = facilitators.filter((f) => f.focus === "Tech").length;
-  const bothCount = facilitators.filter((f) => f.focus === "Both").length;
-  const countries = new Set(facilitators.map((f) => f.country)).size;
+}: {
+  facilitators: Facilitator[];
+  activeFocus?: string;
+  onFocusClick?: (focus: string) => void;
+}) {
+  const count = (f: string) =>
+    facilitators.filter((x) => x.focus === f).length;
 
-  const stats = [
-    {
-      label: "Total",
-      filterKey: "All",
-      value: total,
-      icon: <Contact className="w-5 h-5" />,
-      color: "text-indigo-600 bg-indigo-50",
-      activeRing: "ring-2 ring-indigo-400",
-    },
-    {
-      label: "Facilitation",
-      filterKey: "Facilitation",
-      value: facilCount,
-      icon: <Users className="w-5 h-5" />,
-      color: "text-blue-600 bg-blue-50",
-      activeRing: "ring-2 ring-blue-400",
-    },
-    {
-      label: "Tech",
-      filterKey: "Tech",
-      value: techCount,
-      icon: <Monitor className="w-5 h-5" />,
-      color: "text-emerald-600 bg-emerald-50",
-      activeRing: "ring-2 ring-emerald-400",
-    },
-    {
-      label: "Both",
-      filterKey: "Both",
-      value: bothCount,
-      icon: (
-        <span className="inline-flex items-center -space-x-1">
-          <Users className="w-4 h-4" />
-          <Monitor className="w-4 h-4" />
-        </span>
-      ),
-      color: "text-purple-600 bg-purple-50",
-      activeRing: "ring-2 ring-purple-400",
-    },
-    {
-      label: "Countries",
-      filterKey: null,
-      value: countries,
-      icon: <Globe className="w-5 h-5" />,
-      color: "text-amber-600 bg-amber-50",
-      activeRing: "",
-    },
+  const segments = [
+    { key: "All", label: "Everyone", value: facilitators.length },
+    { key: "Facilitation", label: "Facilitation", value: count("Facilitation") },
+    { key: "Tech", label: "Tech", value: count("Tech") },
+    { key: "Both", label: "Both", value: count("Both") },
   ];
 
+  const free = facilitators.filter((f) => f.availability === "Available").length;
+  const countries = new Set(
+    facilitators.map((f) => f.country).filter(Boolean)
+  ).size;
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-      {stats.map((s) => {
-        const isClickable = s.filterKey !== null && onFocusClick;
-        const isActive = s.filterKey === activeFocus;
-        return (
-          <button
-            key={s.label}
-            type="button"
-            onClick={() => {
-              if (isClickable) onFocusClick(s.filterKey!);
-            }}
-            disabled={!isClickable}
-            className={`bg-white border rounded-xl p-3 flex items-center gap-3 shadow-sm transition-all text-left ${
-              isClickable ? "cursor-pointer hover:shadow-md" : "cursor-default"
-            } ${isActive ? `${s.activeRing} border-transparent` : "border-gray-200"}`}
-          >
-            <div className={`p-2 rounded-lg ${s.color}`}>{s.icon}</div>
-            <div>
-              <div className="text-xl font-bold text-gray-900">{s.value}</div>
-              <div className="text-xs text-gray-500">{s.label}</div>
-            </div>
-          </button>
-        );
-      })}
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+      <div
+        role="group"
+        aria-label="Filter by focus"
+        className="inline-flex overflow-hidden rounded-lg border border-ink-200 bg-white"
+      >
+        {segments.map((s, i) => {
+          const active = s.key === activeFocus;
+          return (
+            <button
+              key={s.key}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onFocusClick?.(s.key)}
+              className={`flex items-baseline gap-1.5 px-3.5 py-2 text-left transition-colors ${
+                i > 0 ? "border-l border-ink-200" : ""
+              } ${
+                active
+                  ? "bg-arctic-50 text-arctic-800"
+                  : "text-ink-600 hover:bg-ink-50"
+              }`}
+            >
+              <span
+                className={`tnum text-base font-semibold ${
+                  active ? "text-arctic-800" : "text-ink-900"
+                }`}
+              >
+                {s.value}
+              </span>
+              <span className="text-xs">{s.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="tnum text-xs text-ink-500">
+        <span className="font-medium text-ok-700">{free} free</span> right now
+        <span className="text-ink-300"> · </span>
+        {countries} {countries === 1 ? "country" : "countries"}
+      </p>
     </div>
   );
 }
