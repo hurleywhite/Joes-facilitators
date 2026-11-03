@@ -73,7 +73,18 @@ async function callOpenAI(
   req: CallToolModelRequest
 ): Promise<CallToolModelResponse> {
   const apiKey = process.env.OPENAI_API_KEY!;
-  const model = process.env.OPENAI_MODEL || "gpt-4o";
+  const model = process.env.OPENAI_MODEL || "gpt-6-luna";
+
+  // gpt-5 and gpt-6 are reasoning families, and OpenAI's gpt-6-luna model
+  // page is explicit: "Chat Completions supports function calling only
+  // with reasoning_effort set to none." The default is medium. This
+  // helper's entire contract is a forced tool call over Chat Completions,
+  // so without this every /chat, /edit, /transcripts and /emails parse
+  // would come back with no tool call at all.
+  //
+  // Only sent where it applies: legacy models such as gpt-4o reject the
+  // parameter outright, and OPENAI_MODEL is there to be overridden.
+  const isReasoningModel = /^gpt-[56]/.test(model);
 
   // OpenAI: tools are wrapped in {type:"function", function:{...}} and
   // the schema lives under `parameters` (not input_schema).
@@ -103,6 +114,7 @@ async function callOpenAI(
     tool_choice: toolChoice,
     parallel_tool_calls: req.allowParallel ?? false,
     max_completion_tokens: req.maxTokens ?? 2000,
+    ...(isReasoningModel ? { reasoning_effort: "none" as const } : {}),
   };
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {

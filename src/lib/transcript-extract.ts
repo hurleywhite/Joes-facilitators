@@ -109,8 +109,14 @@ Remember: WHEN IN DOUBT, RETURN NULL. Wrong information is worse than missing in
 /**
  * OpenAI model used for extraction. Override via OPENAI_EXTRACTION_MODEL env
  * if you want to swap (e.g. to a cheaper mini for batch jobs).
+ *
+ * Unlike lib/llm.ts this path asks for `response_format: json_object`
+ * rather than a function call, so it is not subject to gpt-6-luna's
+ * "function calling needs reasoning_effort: none" rule on Chat
+ * Completions. Default reasoning is left in place, which is what you
+ * want for pulling claims out of a messy transcript.
  */
-const DEFAULT_OPENAI_MODEL = "gpt-5.4";
+const DEFAULT_OPENAI_MODEL = "gpt-6-luna";
 
 export type DocumentType = "transcript" | "email";
 
