@@ -1,6 +1,7 @@
 "use client";
 
-import { Facilitator, AvailabilityWindow } from "@/types/facilitator";
+import { Facilitator } from "@/types/facilitator";
+import { statedAvailability } from "@/lib/availability-display";
 import { ExternalLink } from "lucide-react";
 
 /**
@@ -14,45 +15,6 @@ import { ExternalLink } from "lucide-react";
  *
  * Full bio and history stay one click away in the drawer.
  */
-
-const STATUS: Record<
-  string,
-  { dot: string; text: string; label: string }
-> = {
-  Available: { dot: "bg-ok-600", text: "text-ok-700", label: "Free" },
-  "On Assignment": {
-    dot: "bg-warn-600",
-    text: "text-warn-700",
-    label: "On assignment",
-  },
-  Unavailable: { dot: "bg-stop-600", text: "text-stop-700", label: "Unavailable" },
-};
-
-/** Next open window from today, e.g. "thru year-end" or "Jul 3 – Sep 20". */
-function nextWindow(windows: AvailabilityWindow[] | undefined): string | null {
-  if (!windows?.length) return null;
-  const today = new Date().toISOString().slice(0, 10);
-  const upcoming = windows
-    .filter((w) => w.end >= today)
-    .sort((a, b) => a.start.localeCompare(b.start));
-  if (!upcoming.length) return null;
-  const w = upcoming[0];
-  const fmt = (iso: string) =>
-    new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      timeZone: "UTC",
-    });
-  if (w.start <= today && w.end.endsWith("-12-31")) return "thru year-end";
-  if (w.start <= today) return `thru ${fmt(w.end)}`;
-  return `${fmt(w.start)} – ${fmt(w.end)}`;
-}
-
-const TRAVEL: Record<string, string> = {
-  Yes: "will travel",
-  Domestic: "domestic only",
-  No: "no travel",
-};
 
 const TIER: Record<string, string> = { High: "Top", Medium: "Mid", Low: "Low" };
 
@@ -109,9 +71,7 @@ function Row({
   f: Facilitator;
   onOpen: (f: Facilitator) => void;
 }) {
-  const st = STATUS[f.availability] ?? STATUS.Available;
-  const win = nextWindow(f.availableWindows);
-  const travel = f.willingToTravel ? TRAVEL[f.willingToTravel] : null;
+  const avail = statedAvailability(f);
   const done = f.engagements.filter((e) => e.status === "Completed").length;
   const inds = f.industryExperience ?? [];
   const langs = (f.languages ?? []).filter((l) => l.toLowerCase() !== "english");
@@ -161,30 +121,28 @@ function Row({
         </span>
       </td>
 
-      {/* When they're free */}
+      {/* What they've told us. Blank when that's nothing — see stated(). */}
       <td className="px-3 py-2.5">
-        <span className={`flex items-center gap-1.5 text-sm ${st.text}`}>
-          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${st.dot}`} />
-          {st.label}
-        </span>
-        {/* Only rendered when there's something to say. An empty line on
-            every row for the people who haven't filled the form in is
-            noise, and it buries the rows that DO have dates. */}
-        {(win || travel) && (
-          <span className="tnum block text-xs text-ink-500">
-            {win}
-            {win && travel && <span className="text-ink-400"> · </span>}
-            {travel && <span className="text-ink-400">{travel}</span>}
-          </span>
+        {avail && (
+          <>
+            <span className="tnum block text-sm text-ink-800">{avail.line}</span>
+            {avail.sub && (
+              <span className="block text-xs text-ink-400">{avail.sub}</span>
+            )}
+          </>
         )}
       </td>
 
-      {/* What they know. Empty cells stay empty — a column of em-dashes
-          is twenty pieces of punctuation telling you nothing. */}
+      {/* What they know. All of it.
+          This used to cut off at two with a "+5", which hid 52 of the 139
+          industry tags in the pool — 37% of exactly the information you
+          filter and staff on. Industry is the column people scan to answer
+          "who has done this before", so a row that wraps is cheaper than a
+          tag you never see. Empty cells stay empty. */}
       <td className="hidden px-3 py-2.5 lg:table-cell">
         {inds.length > 0 && (
           <span className="flex flex-wrap items-center gap-1">
-            {inds.slice(0, 2).map((i) => (
+            {inds.map((i) => (
               <span
                 key={i}
                 className="rounded border border-ink-200 bg-ink-50 px-1.5 py-0.5 text-[11px] text-ink-700"
@@ -192,14 +150,6 @@ function Row({
                 {i}
               </span>
             ))}
-            {inds.length > 2 && (
-              <span
-                className="text-[11px] text-ink-500"
-                title={inds.slice(2).join(", ")}
-              >
-                +{inds.length - 2}
-              </span>
-            )}
           </span>
         )}
       </td>
@@ -253,18 +203,24 @@ export default function FacilitatorRoster({
               <th scope="col" className="eyebrow px-3 py-2 text-left">
                 Focus
               </th>
-              <th scope="col" className="eyebrow px-3 py-2 text-left">
-                Availability
+              {/* "Availability" promised a live answer. This column only
+                  ever holds what someone told us, so it says so. */}
+              <th
+                scope="col"
+                className="eyebrow w-[11%] px-3 py-2 text-left"
+                title="What the person has told us — a window they submitted, or a status someone set by hand. Blank means nobody has asked them."
+              >
+                Told us
               </th>
               <th
                 scope="col"
-                className="eyebrow hidden px-3 py-2 text-left lg:table-cell"
+                className="eyebrow hidden w-[36%] px-3 py-2 text-left lg:table-cell"
               >
                 Industries
               </th>
               <th
                 scope="col"
-                className="eyebrow hidden px-3 py-2 text-left xl:table-cell"
+                className="eyebrow hidden w-[12%] px-3 py-2 text-left xl:table-cell"
               >
                 Languages
               </th>

@@ -178,12 +178,12 @@ export default function Home() {
     availableOn,
   ]);
 
-  const freeNow = facilitators.filter(
-    (f) => f.availability === "Available"
-  ).length;
-
+  // "N free" here counted the sheet's default Availability cell and
+  // reported it as live fact. We don't have anyone's calendar, so the
+  // header states the two things we can stand behind: how many people are
+  // on the bench, and when we last read the sheet.
   const headerStatus = facilitators.length
-    ? `${facilitators.length} on the bench · ${freeNow} free${
+    ? `${facilitators.length} on the bench${
         syncedAt
           ? ` · synced ${syncedAt.toLocaleTimeString([], {
               hour: "2-digit",
@@ -290,19 +290,26 @@ export default function Home() {
                     <MapView facilitators={filtered} />
                   </div>
                 </div>
+                {/* Pins are coloured by focus, not availability. An
+                    earlier version of this legend described availability,
+                    which the map has never shown. */}
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-ink-200 bg-white px-4 py-2.5 text-xs text-ink-600">
                   <span className="eyebrow">Pin colour</span>
                   <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-ok-600" />
-                    Free
+                    <span className="h-2 w-2 rounded-full bg-arctic-500" />
+                    Facilitation
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-warn-600" />
-                    On assignment
+                    <span className="h-2 w-2 rounded-full bg-arctic-300" />
+                    Tech
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-stop-600" />
-                    Unavailable
+                    <span className="h-2 w-2 rounded-full bg-arctic-800" />
+                    Both
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-ink-400" />
+                    Focus not set
                   </span>
                 </div>
               </Suspense>

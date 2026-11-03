@@ -8,13 +8,13 @@ import "leaflet/dist/leaflet.css";
 function focusColor(focus: string | undefined): string {
   switch (focus) {
     case "Facilitation":
-      return "#3b82f6"; // blue
+      return "#2480c1"; // arctic-500
     case "Tech":
-      return "#10b981"; // emerald
+      return "#87c4ea"; // arctic-300
     case "Both":
-      return "#8b5cf6"; // purple
+      return "#1a476d"; // arctic-800
     default:
-      return "#9ca3af"; // gray for unspecified
+      return "#99a2ae"; // ink-400, focus not set
   }
 }
 
@@ -113,24 +113,24 @@ export default function MapView({
       const links: string[] = [];
       if (f.linkedinUrl) {
         links.push(
-          `<a href="${esc(f.linkedinUrl)}" target="_blank" rel="noopener" style="font-size:11px;color:#2563eb;text-decoration:none;">LinkedIn →</a>`
+          `<a href="${esc(f.linkedinUrl)}" target="_blank" rel="noopener" style="font-size:11px;color:#1a5584;text-decoration:none;">LinkedIn →</a>`
         );
       }
       if (f.demoVideoUrl) {
         links.push(
-          `<a href="${esc(f.demoVideoUrl)}" target="_blank" rel="noopener" style="font-size:11px;color:#dc2626;text-decoration:none;">▶ Watch demo</a>`
+          `<a href="${esc(f.demoVideoUrl)}" target="_blank" rel="noopener" style="font-size:11px;color:#4e5863;text-decoration:none;">▶ Watch demo</a>`
         );
       }
 
       marker.bindPopup(`
         <div style="min-width:200px;font-family:system-ui,sans-serif;">
           <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${esc(f.name)}</div>
-          <div style="color:#666;font-size:12px;margin-bottom:6px;">${esc(f.location)}</div>
+          <div style="color:#6c7684;font-size:12px;margin-bottom:6px;">${esc(f.location)}</div>
           <div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;">
             <span style="background:${color}20;color:${color};padding:2px 6px;border-radius:10px;font-size:11px;font-weight:500;">${esc(f.focus) || "Focus TBD"}</span>
-            <span style="background:#f3f4f6;color:#374151;padding:2px 6px;border-radius:10px;font-size:11px;font-weight:500;">${f.experienceLevel}</span>
+            <span style="background:#eef0f3;color:#3a424c;padding:2px 6px;border-radius:10px;font-size:11px;font-weight:500;">${f.experienceLevel}</span>
           </div>
-          <div style="font-size:11px;color:#888;margin-bottom:6px;">${completedCount} engagement${completedCount !== 1 ? "s" : ""} completed</div>
+          <div style="font-size:11px;color:#99a2ae;margin-bottom:6px;">${completedCount} engagement${completedCount !== 1 ? "s" : ""} completed</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">${links.join("")}</div>
         </div>
       `);

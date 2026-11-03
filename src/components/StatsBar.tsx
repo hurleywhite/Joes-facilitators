@@ -29,7 +29,12 @@ export default function StatsBar({
     { key: "Both", label: "Both", value: count("Both") },
   ];
 
-  const free = facilitators.filter((f) => f.availability === "Available").length;
+  // "82 free right now" was the sheet's default Availability cell counted
+  // up and reported as live fact. Nobody checked a calendar; most of those
+  // cells have simply never been edited. The number worth showing is how
+  // many people have actually told us their dates — which doubles as the
+  // measure of whether the availability form is being used at all.
+  const told = facilitators.filter((f) => f.availableWindows?.length).length;
   const countries = new Set(
     facilitators.map((f) => f.country).filter(Boolean)
   ).size;
@@ -71,9 +76,26 @@ export default function StatsBar({
       </div>
 
       <p className="tnum text-xs text-ink-500">
-        <span className="font-medium text-ok-700">{free} free</span> right now
-        <span className="text-ink-300"> · </span>
         {countries} {countries === 1 ? "country" : "countries"}
+        <span className="text-ink-300"> · </span>
+        {told === 0 ? (
+          <>
+            nobody has sent dates yet —{" "}
+            <a
+              href="/availability"
+              className="font-medium text-arctic-700 underline underline-offset-2"
+            >
+              share the form
+            </a>
+          </>
+        ) : (
+          <>
+            <span className="font-medium text-ink-700">
+              {told} of {facilitators.length}
+            </span>{" "}
+            have sent dates
+          </>
+        )}
       </p>
     </div>
   );

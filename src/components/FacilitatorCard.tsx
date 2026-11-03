@@ -1,6 +1,7 @@
 "use client";
 
-import { Facilitator, AvailabilityWindow } from "@/types/facilitator";
+import { Facilitator } from "@/types/facilitator";
+import { statedAvailability } from "@/lib/availability-display";
 import { ExternalLink, PlayCircle } from "lucide-react";
 
 /**
@@ -14,46 +15,7 @@ import { ExternalLink, PlayCircle } from "lucide-react";
  * genuine state. Hierarchy comes from size, weight and order instead.
  */
 
-const STATUS: Record<string, { dot: string; text: string; label: string }> = {
-  Available: { dot: "bg-ok-600", text: "text-ok-700", label: "Free" },
-  "On Assignment": {
-    dot: "bg-warn-600",
-    text: "text-warn-700",
-    label: "On assignment",
-  },
-  Unavailable: {
-    dot: "bg-stop-600",
-    text: "text-stop-700",
-    label: "Unavailable",
-  },
-};
-
-const TRAVEL: Record<string, string> = {
-  Yes: "will travel",
-  Domestic: "domestic only",
-  No: "no travel",
-};
-
 const TIER: Record<string, string> = { High: "Top", Medium: "Mid", Low: "Low" };
-
-function nextWindow(windows: AvailabilityWindow[] | undefined): string | null {
-  if (!windows?.length) return null;
-  const today = new Date().toISOString().slice(0, 10);
-  const upcoming = windows
-    .filter((w) => w.end >= today)
-    .sort((a, b) => a.start.localeCompare(b.start));
-  if (!upcoming.length) return null;
-  const w = upcoming[0];
-  const fmt = (iso: string) =>
-    new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      timeZone: "UTC",
-    });
-  if (w.start <= today && w.end.endsWith("-12-31")) return "free thru year-end";
-  if (w.start <= today) return `free thru ${fmt(w.end)}`;
-  return `free ${fmt(w.start)} – ${fmt(w.end)}`;
-}
 
 function initials(name: string) {
   return name
@@ -80,9 +42,7 @@ export default function FacilitatorCard({
   f: Facilitator;
   onOpen?: (f: Facilitator) => void;
 }) {
-  const st = STATUS[f.availability] ?? STATUS.Available;
-  const win = nextWindow(f.availableWindows);
-  const travel = f.willingToTravel ? TRAVEL[f.willingToTravel] : null;
+  const avail = statedAvailability(f);
   const done = f.engagements.filter((e) => e.status === "Completed").length;
   const langs = (f.languages ?? []).filter((l) => l.toLowerCase() !== "english");
   const inds = f.industryExperience ?? [];
@@ -141,13 +101,15 @@ export default function FacilitatorCard({
         </div>
       </div>
 
-      {/* Availability — the one thing on this card allowed a colour. */}
-      <p className={`mt-3 flex flex-wrap items-center gap-1.5 text-xs ${st.text}`}>
-        <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
-        <span className="font-medium">{st.label}</span>
-        {win && <span className="tnum text-ink-600">· {win}</span>}
-        {travel && <span className="text-ink-500">· {travel}</span>}
-      </p>
+      {/* Only what they've told us. The green "Free" that used to sit here
+          was the sheet's untouched default dressed up as a live calendar
+          read — see lib/availability-display.ts. */}
+      {avail && (
+        <p className="tnum mt-3 text-xs text-ink-700">
+          {avail.line}
+          {avail.sub && <span className="text-ink-400"> · {avail.sub}</span>}
+        </p>
+      )}
 
       {f.bio && (
         <p className="mt-2.5 line-clamp-3 text-sm leading-relaxed text-ink-600">
@@ -157,17 +119,9 @@ export default function FacilitatorCard({
 
       {(inds.length > 0 || langs.length > 0) && (
         <div className="mt-2.5 flex flex-wrap gap-1">
-          {inds.slice(0, 3).map((i) => (
+          {inds.map((i) => (
             <Chip key={`i-${i}`}>{i}</Chip>
           ))}
-          {inds.length > 3 && (
-            <span
-              className="self-center text-[11px] text-ink-500"
-              title={inds.slice(3).join(", ")}
-            >
-              +{inds.length - 3}
-            </span>
-          )}
           {langs.map((l) => (
             <Chip key={`l-${l}`}>{l}</Chip>
           ))}

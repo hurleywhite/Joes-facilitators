@@ -1,6 +1,7 @@
 "use client";
 
 import { Facilitator } from "@/types/facilitator";
+import { statedAvailability } from "@/lib/availability-display";
 import {
   X,
   ExternalLink,
@@ -49,12 +50,10 @@ export default function FacilitatorDrawer({
   if (!facilitator) return null;
   const f = facilitator;
 
-  const availColor =
-    f.availability === "Available"
-      ? "bg-ok-600"
-      : f.availability === "On Assignment"
-        ? "bg-warn-600"
-        : "bg-stop-600";
+  // No status light here either. The dot beside the name was green for
+  // 82 of 84 people because that's the sheet's default, not because we
+  // can see their calendars. See lib/availability-display.ts.
+  const stated = statedAvailability(f);
 
   return (
     <div className="fixed inset-0 z-50 flex">
@@ -76,10 +75,6 @@ export default function FacilitatorDrawer({
               <h2 className="text-lg font-bold text-ink-900 truncate">
                 {f.name}
               </h2>
-              <span
-                className={`w-2.5 h-2.5 rounded-full ${availColor}`}
-                title={f.availability}
-              />
             </div>
             {f.location && (
               <div className="flex items-center gap-1 text-xs text-ink-500 mt-0.5">
@@ -124,7 +119,14 @@ export default function FacilitatorDrawer({
                     : "Low"}{" "}
                 tier
               </p>
-              <p className="mt-0.5 text-sm text-ink-500">{f.availability}</p>
+              {stated && (
+                <p className="tnum mt-0.5 text-sm text-ink-500">
+                  {stated.line}
+                  {stated.sub && (
+                    <span className="text-ink-400"> · {stated.sub}</span>
+                  )}
+                </p>
+              )}
             </div>
           </div>
 

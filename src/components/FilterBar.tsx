@@ -120,16 +120,20 @@ export default function FilterBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {/* These read off the sheet's Availability column, which is a
+            field somebody types into — not a calendar. The labels say
+            "marked" so the filter doesn't imply more than it knows. */}
         <select
-          aria-label="Availability"
+          aria-label="Availability marked on the sheet"
           value={availFilter}
           onChange={(e) => onAvailChange(e.target.value)}
           className={selectClass(availFilter !== "All")}
+          title="Reads the Availability column in the sheet. It is set by hand, not from anyone's calendar."
         >
           <option value="All">Any availability</option>
-          <option value="Available">Free</option>
-          <option value="On Assignment">On assignment</option>
-          <option value="Unavailable">Unavailable</option>
+          <option value="Available">Marked available</option>
+          <option value="On Assignment">Marked on assignment</option>
+          <option value="Unavailable">Marked unavailable</option>
         </select>
 
         <select

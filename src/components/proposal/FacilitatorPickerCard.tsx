@@ -12,12 +12,9 @@ export default function FacilitatorPickerCard({
   selected: boolean;
   onToggle: () => void;
 }) {
-  const availColor =
-    f.availability === "Available"
-      ? "bg-ok-600"
-      : f.availability === "On Assignment"
-        ? "bg-warn-600"
-        : "bg-stop-600";
+  // No availability dot. It was green for 82 of the 84 people on the
+  // bench because "Available" is the sheet's default, not because
+  // anyone checked. See lib/availability-display.ts.
 
   return (
     <button
@@ -40,9 +37,6 @@ export default function FacilitatorPickerCard({
             onError={(e) => {
               (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?textColor=1a5584&seed=${encodeURIComponent(f.name)}`;
             }}
-          />
-          <span
-            className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${availColor}`}
           />
         </div>
 

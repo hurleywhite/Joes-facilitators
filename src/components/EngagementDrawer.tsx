@@ -189,12 +189,9 @@ function TeamTile({
   }
 
   const f = facilitator;
-  const availColor =
-    f.availability === "Available"
-      ? "bg-ok-600"
-      : f.availability === "On Assignment"
-        ? "bg-warn-600"
-        : "bg-stop-600";
+  // No availability dot. It was green for 82 of the 84 people on the
+  // bench because "Available" is the sheet's default, not because
+  // anyone checked. See lib/availability-display.ts.
 
   return (
     <button
@@ -214,9 +211,6 @@ function TeamTile({
             onError={(e) => {
               (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?textColor=1a5584&seed=${encodeURIComponent(f.name)}&backgroundColor=dceefa`;
             }}
-          />
-          <span
-            className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${availColor}`}
           />
         </div>
         <div className="flex-1 min-w-0">
@@ -266,7 +260,7 @@ function TeamTile({
                   : "Low tier"}
             </span>
             {f.willingToTravel && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-ok-50 text-ok-700 border border-ok-200 rounded-full inline-flex items-center gap-0.5">
+              <span className="text-[10px] px-1.5 py-0.5 bg-ink-50 text-ink-700 border border-ink-200 rounded-full inline-flex items-center gap-0.5">
                 <Plane className="w-2.5 h-2.5" />
                 {f.willingToTravel === "Domestic" ? "Domestic" : f.willingToTravel === "Yes" ? "Will travel" : "No travel"}
               </span>
