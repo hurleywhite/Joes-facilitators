@@ -359,8 +359,11 @@ export default function Home() {
                     </span>
                     {unplaced > 0 && (
                       <span className="tnum ml-auto text-ink-500">
-                        {unplaced} of {facilitators.length} have no location on
-                        file and aren&apos;t on the map
+                        {/* Explicit {" "}: this text node spans lines, and
+                            JSX trims a multi-line node's leading space,
+                            which rendered "84have no location". */}
+                        {unplaced} of {facilitators.length}{" "}
+                        have no location on file and aren&apos;t on the map
                       </span>
                     )}
                   </div>
