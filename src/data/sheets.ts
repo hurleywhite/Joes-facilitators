@@ -8,6 +8,7 @@ import {
   Region,
 } from "@/types/facilitator";
 import { mergeIndustries } from "@/lib/industry-parser";
+import { cleanRoster } from "@/lib/dedupe-roster";
 
 /**
  * Country/keyword → Region mapping for auto-deriving region.
@@ -245,7 +246,7 @@ export async function fetchFromGoogleSheet(
     skipEmptyLines: true,
   });
 
-  return parsed.data
+  const rows = parsed.data
     .filter((row) => getCol(row, ["Name"]).length > 0)
     .map((row, i) => {
       const engagements: Engagement[] = [];
@@ -406,6 +407,20 @@ export async function fetchFromGoogleSheet(
         currentEngagement,
       };
     });
+
+  // The sheet carries rows that aren't distinct people: a Drive URL in
+  // the Name column, a name entered twice, and first-name-only rows
+  // shadowing fuller ones. See lib/dedupe-roster.ts for why the merge
+  // rule is narrow. Logged so it's visible if the sheet changes shape.
+  const { people, rejected, merged } = cleanRoster(rows);
+  if (rejected.length || merged.length) {
+    console.log(
+      `[sheets] ${rows.length} rows -> ${people.length} people` +
+        (rejected.length ? ` | not a name: ${rejected.length}` : "") +
+        (merged.length ? ` | merged: ${merged.join(", ")}` : "")
+    );
+  }
+  return people;
 }
 
 /**
